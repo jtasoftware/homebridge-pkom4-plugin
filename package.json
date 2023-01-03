@@ -5,7 +5,7 @@
   "author": "Jerome Tarantino <contact@jtasoftware.org>",
   "license": "EUPL",
   "main": "dist/pichler-pkom4-platform.js",
-  "homepage": "https://github.com/jta01/homebridge-pkom4-plugin#readme",
+  "homepage": "https://github.com/jtasoftware/homebridge-pkom4-plugin#readme",
   "keywords": [
     "homebridge-plugin",
     "pichler",
@@ -18,10 +18,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/jta01/homebridge-pkom4-plugin.git"
+    "url": "git://github.com/jtasoftware/homebridge-pkom4-plugin.git"
   },
   "bugs": {
-    "url": "http://github.com/jta01/homebridge-pkom4-plugin/issues"
+    "url": "http://github.com/jtasoftware/homebridge-pkom4-plugin/issues"
   },
   "funding": {
     "type": "paypal",
