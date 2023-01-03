@@ -6,27 +6,10 @@
 </p>
 
 
-# Homebridge Platform Plugin Template
+# Homebridge PKOM4 Plugin
 
-This is a template Homebridge platform plugin and can be used as a base to help you get started developing your own plugin.
+This is an Homebridge plugin to be used with Pichler PKOM4 heatpump devices.
 
-This template should be used in conjunction with the [developer documentation](https://developers.homebridge.io/). A full list of all supported service types, and their characteristics is available on this site.
-
-## Clone As Template
-
-Click the link below to create a new GitHub Repository using this template, or click the *Use This Template* button above.
-
-<span align="center">
-
-### [Create New Repository From Template](https://github.com/homebridge/homebridge-plugin-template/generate)
-
-</span>
-
-## Setup Development Environment
-
-To develop Homebridge plugins you must have Node.js 12 or later installed, and a modern code editor such as [VS Code](https://code.visualstudio.com/). This plugin template uses [TypeScript](https://www.typescriptlang.org/) to make development easier and comes with pre-configured settings for [VS Code](https://code.visualstudio.com/) and ESLint. If you are using VS Code install these extensions:
-
-* [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
 
 ## Install Development Dependencies
 
@@ -35,28 +18,6 @@ Using a terminal, navigate to the project folder and run this command to install
 ```
 npm install
 ```
-
-## Update package.json
-
-Open the [`package.json`](./package.json) and change the following attributes:
-
-* `name` - this should be prefixed with `homebridge-` or `@username/homebridge-` and contain no spaces or special characters apart from a dashes
-* `displayName` - this is the "nice" name displayed in the Homebridge UI
-* `repository.url` - Link to your GitHub repo
-* `bugs.url` - Link to your GitHub repo issues page
-
-When you are ready to publish the plugin you should set `private` to false, or remove the attribute entirely.
-
-## Update Plugin Defaults
-
-Open the [`src/settings.ts`](./src/settings.ts) file and change the default values:
-
-* `PLATFORM_NAME` - Set this to be the name of your platform. This is the name of the platform that users will use to register the plugin in the Homebridge `config.json`.
-* `PLUGIN_NAME` - Set this to be the same name you set in the [`package.json`](./package.json) file. 
-
-Open the [`config.schema.json`](./config.schema.json) file and change the following attribute:
-
-* `pluginAlias` - set this to match the `PLATFORM_NAME` you defined in the previous step.
 
 ## Build Plugin
 
@@ -88,63 +49,38 @@ If you want to have your code compile automatically as you make changes, and res
 npm run watch
 ```
 
-This will launch an instance of Homebridge in debug mode which will restart every time you make a change to the source code. It will load the config stored in the default location under `~/.homebridge`. You may need to stop other running instances of Homebridge while using this command to prevent conflicts. You can adjust the Homebridge startup command in the [`nodemon.json`](./nodemon.json) file.
+This will launch an instance of Homebridge in debug mode which will restart every time you make a change to the source code. It will load the config stored in the default location under `~/.homebridge`. You may need to stop other running instances of Homebridge while using this command to prevent conflicts.
 
-## Customise Plugin
+## Setup Plugin
 
-You can now start customising the plugin template to suit your requirements.
+You can customise plugin behaviour for test or debug purpose.
 
-* [`src/platform.ts`](./src/platform.ts) - this is where your device setup and discovery should go.
-* [`src/platformAccessory.ts`](./src/platformAccessory.ts) - this is where your accessory control logic should go, you can rename or create multiple instances of this file for each accessory type you need to implement as part of your platform plugin. You can refer to the [developer documentation](https://developers.homebridge.io/) to see what characteristics you need to implement for each service type.
-* [`config.schema.json`](./config.schema.json) - update the config schema to match the config you expect from the user. See the [Plugin Config Schema Documentation](https://developers.homebridge.io/#/config-schema).
+* `Simulate mode` - Simulate PKOM4 behaviour without any actual connected device (used for demos)
+* `Read only mode` - Report any data from PKOM4 but won't send any command (used for debugging)
+* `Modbus logs level` - Define the verbosity of modbus debug logs (None/Low/High)
 
-## Versioning Your Plugin
+## Use Plugin
 
-Given a version number `MAJOR`.`MINOR`.`PATCH`, such as `1.4.3`, increment the:
+Use the plugin with HomeBrige on any HomeBridge-compatible asset. It has been tested with MacBook using [`localhost:8581`](http://localhost:8581) & Raspberry Zero using WiFi or Ethernet connectivity over local network [`homebridge.local:8581`](http://homebridge.local).
 
-1. **MAJOR** version when you make breaking changes to your plugin,
-2. **MINOR** version when you add functionality in a backwards compatible manner, and
-3. **PATCH** version when you make backwards compatible bug fixes.
+Once running in HomeBridge bind with your iOS device in Apple Home App. For improved user experience you can display all services as separated items.
 
-You can use the `npm version` command to help you with this:
+The following services will be available depending on your PKOM version:
+* **Fan** (all models): view current VCM speed or adjust manually. You can turn it off (e.g holidays mode).
+* **Filter Maintenance** (all models): view remaining life for filters and get alert when they need to be changed.
+* **Air Conditioner** (all models): setup air temperatures for cooling or heating. You can turn off either heating or cooling. 
+* **Air Purifier** (models with dioxide sensor): view air quality or force ventilation until better quality is reached. You can turn it off.
+* **Deshumidifier** (models with humidity sensor): view humidity level or force ventilation until deshumidified. You can turn it off.
+* **Water Header** (PKOM Classic): setup water temperature from 35° to 55°. You can reach 65° if you have water resistance installed.
 
-```bash
-# major update / breaking changes
-npm version major
+#### Simulation
 
-# minor update / new features
-npm version update
+If you enable `Simulate mode` you won't need any hardware. Interact with a simulated PKOM4 Classic with all available options (humidity & dioxide sensors, water resistance, duct battery). Dioxide regulation will trigger automatically when max level is reached. Deshumidifier will trigger automatically when max humidity is reached. In both case ventilation will run at max speed. If min humidity is reached ventilation will run at lower speed. Fan can also run at any speed level (25%, 50%, 75%, 100%) using manual setting - and will revert to default speed after 10 min. Humidity and dioxide will increase slightly every 5 min for simulation purpose.
 
-# patch / bugfixes
-npm version patch
-```
+Water Heater will automatically loose temperature every 5 min for simulation purpose and reheat automatically when min temperature is reached.
 
-## Publish Package
+#### Connect to PKOM device
 
-When you are ready to publish your plugin to [npm](https://www.npmjs.com/), make sure you have removed the `private` attribute from the [`package.json`](./package.json) file then run:
+To connect to a PKOM device use a Raspberry Pi (model Zero is fine) and a Modbus/USB converter. You might need to adjust the name of USB driver depending on the chip used by the converter - see `/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts/modbus.py`. You can alternatively use a Raspberry Pi HAT with the 40-pin GPIO header.
 
-```
-npm publish
-```
-
-If you are publishing a scoped plugin, i.e. `@username/homebridge-xxx` you will need to add `--access=public` to command the first time you publish.
-
-#### Publishing Beta Versions
-
-You can publish *beta* versions of your plugin for other users to test before you release it to everyone.
-
-```bash
-# create a new pre-release version (eg. 2.1.0-beta.1)
-npm version prepatch --preid beta
-
-# publish to @beta
-npm publish --tag=beta
-```
-
-Users can then install the  *beta* version by appending `@beta` to the install command, for example:
-
-```
-sudo npm install -g homebridge-example-plugin@beta
-```
-
-
+You can customize `Modbus logs level` to see modbus communication status from HomeBridge logs.
