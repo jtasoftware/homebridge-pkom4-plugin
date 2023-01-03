@@ -1,15 +1,36 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "homebridge-pichler-pkom4",
   "pluginType": "platform",
   "singular": true,
+  "headerDisplay": "Select one optional option to customize plugin behaviour",
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
-        "type": "string",
+      "simulate": {
+        "title": "Simulation mode",
+        "type": "boolean",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "description": "Simulate PKOM4 behaviour without any actual connected device (used for demos)"
+      },
+      "readOnly": {
+        "title": "Read only mode",
+        "type": "boolean",
+        "required": true,
+        "description": "Report any data from PKOM4 but won't send any command (used for debugging)"
+      },
+      "modbusDebugLevel": {
+        "title": "Modbus logs level",
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 2,
+        "required": true,
+        "default": "0",
+        "oneOf": [
+          { "title": "None", "enum": ["0"] },
+          { "title": "Low", "enum": ["1"] },
+          { "title": "High", "enum": ["2"] }
+        ],
+        "description": "Define the verbosity of modbus debug logs"
       }
     }
   }
