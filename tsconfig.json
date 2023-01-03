@@ -1,26 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2018", // ~node10
-    "module": "commonjs",
+    "target": "ES2018",
     "lib": [
-      "es2015",
-      "es2016",
-      "es2017",
-      "es2018"
+      "ES2015",
+      "ES2016",
+      "ES2017",
+      "ES2018"
     ],
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "module": "commonjs",
+    "rootDir": "src",
+    "outDir": "dist",
     "strict": true,
+    "sourceMap": true,
     "esModuleInterop": true,
-    "noImplicitAny": false
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/"
-  ],
-  "exclude": [
-    "**/*.spec.ts"
+    "src"
   ]
 }
