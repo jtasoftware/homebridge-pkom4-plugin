@@ -66,21 +66,37 @@ Use the plugin with HomeBrige on any HomeBridge-compatible asset. It has been te
 Once running in HomeBridge bind with your iOS device in Apple Home App. For improved user experience you can display all services as separated items.
 
 The following services will be available depending on your PKOM version:
-* **Fan** (all models): view current VCM speed or adjust manually. You can turn it off (e.g holidays mode).
+* **Fan** (all models): view current VCM speed or adjust manually. You can turn it off (standby mode).
 * **Filter Maintenance** (all models): view remaining life for filters and get alert when they need to be changed.
 * **Air Conditioner** (all models): setup air temperatures for cooling or heating. You can turn off either heating or cooling. 
 * **Air Purifier** (models with dioxide sensor): view air quality or force ventilation until better quality is reached. You can turn it off.
 * **Deshumidifier** (models with humidity sensor): view humidity level or force ventilation until deshumidified. You can turn it off.
 * **Water Header** (PKOM Classic): setup water temperature from 35° to 55°. You can reach 65° if you have water resistance installed.
 
+Involved PKOM features:
+* CVM level 1 to 4 based on Fan speed (25/50/75/90%)
+* Automatic mode when air conditioner is auto
+* Winter mode when only heating is enabled
+* Summer mode when only cooling is enabled or AC is disabled
+* Hot Water mode when both fan and AC are disabled
+* Air filter alerts
+
+Available PKOM settings:
+* Setpoint for water heating
+* Setpoint for room heating & cooling
+* Dioxide concentration threshold
+* Max humidity threshold
+
+All other settings and features (incl. Holidays mode) need to be done with Pichler app or device console.
+
 #### Simulation
 
-If you enable `Simulate mode` you won't need any hardware. Interact with a simulated PKOM4 Classic with all available options (humidity & dioxide sensors, water resistance, duct battery). Dioxide regulation will trigger automatically when max level is reached. Deshumidifier will trigger automatically when max humidity is reached. In both case ventilation will run at max speed. If min humidity is reached ventilation will run at lower speed. Fan can also run at any speed level (25%, 50%, 75%, 100%) using manual setting - and will revert to default speed after 10 min. Humidity and dioxide will increase slightly every 5 min for simulation purpose.
+If you enable `Simulate mode` you won't need any hardware. Interact with a simulated PKOM4 Classic with all available options (humidity & dioxide sensors, water resistance, duct battery). Dioxide regulation will trigger automatically when max level is reached. Deshumidifier will trigger automatically when max humidity is reached. In both case ventilation will run at max speed. If min humidity is reached ventilation will run at lower speed. Fan can also run at any speed level (25%, 50%, 75%, 90%) using manual setting - and will revert to default speed after 10 min. Humidity and dioxide will increase slightly every 5 min for simulation purpose.
 
 Water Heater will automatically loose temperature every 5 min for simulation purpose and reheat automatically when min temperature is reached.
 
 #### Connect to PKOM device
 
-To connect to a PKOM device use a Raspberry Pi (model Zero is fine) and a Modbus/USB converter. You might need to adjust the name of USB driver depending on the chip used by the converter - see `/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts/modbus.py`. You can alternatively use a Raspberry Pi HAT with the 40-pin GPIO header.
+To connect to a PKOM device use a Raspberry Pi (model Zero is fine) and a Modbus/USB converter. You might need to adjust the name of USB driver depending on the chip used by the converter - see `/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts/modbus.py` using HomeBridge terminal. You can alternatively use a Raspberry Pi HAT with the 40-pin GPIO header.
 
 You can customize `Modbus logs level` to see modbus communication status from HomeBridge logs.
