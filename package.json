@@ -1,6 +1,6 @@
 {
   "name": "homebridge-pichler-pkom4",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Homebridge plugin for PichlerLuft.at thermodynamic all-in-one PKOM4 Classic and Trend (Modbus)",
   "author": "Jerome Tarantino <contact@jtasoftware.org>",
   "license": "EUPL",
