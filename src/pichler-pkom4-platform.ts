@@ -21,7 +21,7 @@ class PichlerPKOM4Platform implements StaticPlatformPlugin {
     this.log = log;
 	this.config = config;
 	    
-    log.info("Copyright © 2022 by J. Tarantino, released under EUPL license");
+    log.info("Copyright © 2022/2023 by J. Tarantino, released under EUPL license");
     log.info("Pichler-PKOM4 platform finished initializing");
   }
 

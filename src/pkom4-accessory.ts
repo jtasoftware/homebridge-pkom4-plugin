@@ -55,6 +55,20 @@ const PKOM_PURIFIER_LEVEL = PKOM_SPEED_LEVEL_HIGH;
 const PKOM_FILTER_DURATION_ALERT = 8280.0;	// 15 days before 1 year
 const PKOM_FILTER_MAX_DURATION = 8760.0; // 1 year
 
+const PKOM_DEMO_BOILER_TEMP = 47.0;
+const PKOM_DEMO_BOILER_THRESHOLD = 55.0;
+const PKOM_DEMO_COOL_TEMP = 26.0;
+const PKOM_DEMO_HEAT_TEMP = 22.0;
+const PKOM_DEMO_AIR_HUMID = 65.0;
+const PKOM_DEMO_AIR_TEMP = 25.0;
+const PKOM_DEMO_AIR_DIOXIDE = 851.0;
+const PKOM_DEMO_DIOXIDE_THRESHOLD = 1000.0;
+const PKOM_DEMO_HUMID_THRESHOLD = 70.0;
+const PKOM_DEMO_FILTER_DURATION = 4320;	// 24*180 days
+const PKOM_DEMO_BOILER_ENERGY = 1;
+const PKOM_DEMO_SENSORS = 3;
+const PKOM_DEMO_OPTIONS = 4;
+
 const MODBUS_FLOAT_EPSILON = 0.01;	// Maximal precision being 2 digits, ignore lower value delta
 const MODBUS_ADDR_MODE = 0;						// ENUM, RW
 const MODBUS_ADDR_COOLING = 9;					// BOOL, RW
@@ -169,19 +183,19 @@ class ModbusSession {
   	this.registersValue[MODBUS_ADDR_MODE] = (demoMode ? PKOM_MODE_AUTO : PKOM_MODE_OFF);
   	this.registersValue[MODBUS_ADDR_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
   	this.registersValue[MODBUS_ADDR_AUTO_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
-  	this.registersValue[MODBUS_ADDR_AIR_DIOXIDE] = (demoMode ? 851.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD] = (demoMode ? 1000.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = (demoMode ? 70.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_AIR_HUMID] = (demoMode ? 65.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_AIR_TEMP] = (demoMode ? 25.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = (demoMode ? 22.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = (demoMode ? 26.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? 47.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? 55.0 : 0.0);
-  	this.registersValue[MODBUS_ADDR_FILTER_DURATION] = (demoMode ? 24*180 : 0);
-  	this.registersValue[MODBUS_ADDR_BOILER_ENERGY] = (demoMode ? 1 : 0);
-  	this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? 3 : 0);
-  	this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? 4 : 0);
+  	this.registersValue[MODBUS_ADDR_AIR_DIOXIDE] = (demoMode ? PKOM_DEMO_AIR_DIOXIDE : 0.0);
+  	this.registersValue[MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD] = (demoMode ? PKOM_DEMO_DIOXIDE_THRESHOLD : 0.0);
+  	this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = (demoMode ? PKOM_DEMO_HUMID_THRESHOLD : PKOM_MIN_DEHUMID_HUMID);
+  	this.registersValue[MODBUS_ADDR_AIR_HUMID] = (demoMode ? PKOM_DEMO_AIR_HUMID : 0.0);
+  	this.registersValue[MODBUS_ADDR_AIR_TEMP] = (demoMode ? PKOM_DEMO_AIR_TEMP : 0.0);
+  	this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
+  	this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = (demoMode ? PKOM_DEMO_COOL_TEMP : PKOM_MIN_COOL_TEMP);
+  	this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? PKOM_DEMO_BOILER_TEMP : 0.0);
+  	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? PKOM_DEMO_BOILER_THRESHOLD : PKOM_MIN_BOILER_TEMP);
+  	this.registersValue[MODBUS_ADDR_FILTER_DURATION] = (demoMode ? PKOM_DEMO_FILTER_DURATION : 0);
+  	this.registersValue[MODBUS_ADDR_BOILER_ENERGY] = (demoMode ? PKOM_DEMO_BOILER_ENERGY : 0);
+  	this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? PKOM_DEMO_SENSORS : 0);
+  	this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? PKOM_DEMO_OPTIONS : 0);
   }
 
   async begin(): Promise<any> {
@@ -363,7 +377,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   private dehumidifierCurrentState = 0;
   private dehumidifierTargetState = 0;
   private dehumidifierCurrentHumidity = 0.0;
-  private dehumidifierHumidityThreshold = 0.0;
+  private dehumidifierHumidityThreshold = PKOM_MIN_DEHUMID_HUMID;
   private dehumidifierManualMode = false;
   private dehumidifierPreviouslyActivated = false;
 
@@ -371,15 +385,15 @@ export class PKOM4Accessory implements AccessoryPlugin {
   private conditionerCurrentState = 0;
   private conditionerTargetState = 0;
   private conditionerCurrentTemperature = 0.0;
-  private conditionerHeatingThreshold = 0.0;
-  private conditionerCoolingThreshold = 0.0;
+  private conditionerHeatingThreshold = PKOM_MIN_HEAT_TEMP;
+  private conditionerCoolingThreshold = PKOM_MIN_COOL_TEMP;
   private conditionerPreviouslyActivated = false;
 
   private waterHeaterActive = false;
   private waterHeaterCurrentState = 0;
-  private waterHeaterTargetState = 0;
+  private waterHeaterTargetState = 1;
   private waterHeaterCurrentTemperature = 0.0;
-  private waterHeaterHeatingThreshold = 0.0;
+  private waterHeaterHeatingThreshold = PKOM_MIN_BOILER_TEMP;
 
   private holidaysModeSwitchedOn = false;
 
@@ -467,98 +481,98 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.log.info("Accessories characteristics initializing…");
 	this.willChangeModbusStatus();
 	
-    this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
-    	.updateCharacteristic(this.hap.Characteristic.SerialNumber, this.pkomSerialNumber)
-    	.updateCharacteristic(this.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
-    this.informationService.getCharacteristic(this.hap.Characteristic.Identify)
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.log.info("Identifying device #" + this.pkomSerialNumber);
-        callback();
-      });
-    
-    this.fanService.getCharacteristic(this.hap.Characteristic.On)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Mechanical ventilation is " + (this.fanSwitchedOn? "on" : "off"));
-        callback(undefined, this.fanSwitchedOn);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-      	let fanSwitchedOn = value as boolean
-        if (this.fanSwitchedOn != fanSwitchedOn) {
-        	this.fanSwitchedOn = fanSwitchedOn;
-	   		this.fanActivationChanged();
-	    
-        	this.log.info("Mechanical ventilation state set to " + (fanSwitchedOn? "on" : "off"));
-        }
-        callback();
-      });
-    this.fanService.getCharacteristic(this.hap.Characteristic.RotationSpeed)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
-        callback(undefined, this.fanRotationSpeed);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.fanRotationSpeed = value as number;
-        this.fanSpeedChanged();
-        
-        this.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
-        callback();
-      });
-        
-    this.filterService.getCharacteristic(this.hap.Characteristic.FilterChangeIndication)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Filter change alert is " + (this.filterChangeAlert? "on" : "off"));
-        callback(undefined, (this.filterChangeAlert? this.hap.Characteristic.FilterChangeIndication.CHANGE_FILTER : this.hap.Characteristic.FilterChangeIndication.FILTER_OK));
-      });
-    this.filterService.getCharacteristic(this.hap.Characteristic.FilterLifeLevel)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Filter life level is %d%%", this.filterLifeLevel);
-        callback(undefined, this.filterLifeLevel);
-      });
-    this.filterService.getCharacteristic(this.hap.Characteristic.ResetFilterIndication)
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.log.info("Filter alert reseted");
-        callback();
-      });
+	this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
+		.updateCharacteristic(this.hap.Characteristic.SerialNumber, this.pkomSerialNumber)
+		.updateCharacteristic(this.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
+	this.informationService.getCharacteristic(this.hap.Characteristic.Identify)
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.log.info("Identifying device #" + this.pkomSerialNumber);
+		callback();
+	  });
+
+	this.fanService.getCharacteristic(this.hap.Characteristic.On)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Mechanical ventilation is " + (this.fanSwitchedOn? "on" : "off"));
+		callback(undefined, this.fanSwitchedOn);
+	  })
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		let fanSwitchedOn = value as boolean
+		if (this.fanSwitchedOn != fanSwitchedOn) {
+			this.fanSwitchedOn = fanSwitchedOn;
+			this.fanActivationChanged();
+	
+			this.log.info("Mechanical ventilation state set to " + (fanSwitchedOn? "on" : "off"));
+		}
+		callback();
+	  });
+	this.fanService.getCharacteristic(this.hap.Characteristic.RotationSpeed)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
+		callback(undefined, this.fanRotationSpeed);
+	  })
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.fanRotationSpeed = value as number;
+		this.fanSpeedChanged();
+	
+		this.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
+		callback();
+	  });
+
+	this.filterService.getCharacteristic(this.hap.Characteristic.FilterChangeIndication)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Filter change alert is " + (this.filterChangeAlert? "on" : "off"));
+		callback(undefined, (this.filterChangeAlert? this.hap.Characteristic.FilterChangeIndication.CHANGE_FILTER : this.hap.Characteristic.FilterChangeIndication.FILTER_OK));
+	  });
+	this.filterService.getCharacteristic(this.hap.Characteristic.FilterLifeLevel)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Filter life level is %d%%", this.filterLifeLevel);
+		callback(undefined, this.filterLifeLevel);
+	  });
+	this.filterService.getCharacteristic(this.hap.Characteristic.ResetFilterIndication)
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.log.info("Filter alert reseted");
+		callback();
+	  });
 
 	this.sensorService.getCharacteristic(this.hap.Characteristic.AirQuality)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Air quality sensor air quality is " + this.purifierAirQuality);
 		callback(undefined, this.purifierAirQuality);
 	  });
 	this.sensorService.getCharacteristic(this.hap.Characteristic.CarbonDioxideLevel)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Air quality sensor dioxide level is %d ppm", this.purifierDioxideLevel.toFixed(1));
 		callback(undefined, this.purifierDioxideLevel);
 	  });
 
 	this.purifierService.getCharacteristic(this.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Air purifier is " + (this.purifierActive? "active" : "inactive"));
 		callback(undefined, this.purifierActive);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.purifierActive = value as boolean;
 		this.purifierActivationChanged();
-	
+
 		this.log.info("Air purifier set to " + (this.purifierActive? "active" : "inactive"));
 		callback();
 	  });
 	this.purifierService.getCharacteristic(this.hap.Characteristic.CurrentAirPurifierState)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Current air purifier state is " + this.purifierCurrentState);
 		callback(undefined, this.purifierCurrentState);
 	  });
 	this.purifierService.getCharacteristic(this.hap.Characteristic.TargetAirPurifierState)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Target air purifier state is " + this.purifierTargetState);
 		callback(undefined, this.purifierTargetState);
 	  })
@@ -572,7 +586,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 
 	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {  		
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Dehumidifier is " + (this.dehumidifierActive? "active" : "inactive"));
 		callback(undefined, this.dehumidifierActive);
 	  })
@@ -584,117 +598,122 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		callback();
 	  });
 	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.CurrentHumidifierDehumidifierState)
+	  .updateValue(this.dehumidifierCurrentState)
 	  .setProps({ validValues: [0, 1, 3] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Current dehumidifier purifier state is " + this.dehumidifierCurrentState);
 		callback(undefined, this.dehumidifierCurrentState);
 	  });
 	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.TargetHumidifierDehumidifierState)
+	  .updateValue(this.dehumidifierTargetState)
 	  .setProps({ validValues: [0, 2] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Target dehumidifier state is " + this.dehumidifierTargetState);
 		callback(undefined, this.dehumidifierTargetState);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.dehumidifierTargetState = value as number;
-	  	this.dehumidifierTargetStateChanged();
-	
+		this.dehumidifierTargetStateChanged();
+
 		this.log.info("Dehumidifier state set to " + this.dehumidifierTargetState);
 		callback();
 	  });
 	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.CurrentRelativeHumidity)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
 		callback(undefined, this.dehumidifierCurrentHumidity);
 	  });
 	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold)
+	  .updateValue(this.dehumidifierHumidityThreshold)
 	  .setProps({ minValue: PKOM_MIN_DEHUMID_HUMID, maxValue: PKOM_MAX_DEHUMID_HUMID, minStep: PKOM_HUMID_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
 		callback(undefined, this.dehumidifierHumidityThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.dehumidifierHumidityThreshold = value as number;
-  		this.dehumidifierThresholdChanged();
-		
+		this.dehumidifierThresholdChanged();
+	
 		this.log.info("Dehumidifier dehumidifying threshold set to %d%%", this.dehumidifierHumidityThreshold);
 		callback();
 	  });
 
-    this.conditionerService.getCharacteristic(this.hap.Characteristic.Active)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {  		
-      	this.willObserveModbusStatus();
-        this.log.debug("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
-        callback(undefined, this.conditionerActive);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.conditionerActive = value as boolean;
-        this.conditionerActivationChanged();
+	this.conditionerService.getCharacteristic(this.hap.Characteristic.Active)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {  		
+		this.willObserveModbusStatus();
+		this.log.debug("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
+		callback(undefined, this.conditionerActive);
+	  })
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.conditionerActive = value as boolean;
+		this.conditionerActivationChanged();
 
-        this.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
-        callback();
-      });
-    this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Current air conditioner state is " + this.conditionerCurrentState);
-        callback(undefined, this.conditionerCurrentState);
-      });
-    this.conditionerService.getCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Target air conditioner state is " + this.conditionerTargetState);
-        callback(undefined, this.conditionerTargetState);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.conditionerTargetState = value as number;
-        this.conditionerTargetStateChanged();
-        
-        this.log.info("Air conditioner state set to " + this.conditionerTargetState);
-        callback();
-      });
-    this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Air conditioner temperature %f°C", this.conditionerCurrentTemperature.toFixed(1));
-        callback(undefined, this.conditionerCurrentTemperature);
-      });
-    this.conditionerService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
-      .setProps({ minValue: PKOM_MIN_HEAT_TEMP, maxValue: PKOM_MAX_HEAT_TEMP, minStep: PKOM_TEMP_STEP })
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Air conditioner heating threshold is %f°C", this.conditionerHeatingThreshold);
-        callback(undefined, this.conditionerHeatingThreshold);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.conditionerHeatingThreshold = value as number;
-        this.conditionerThresholdChanged();
-        
-        this.log.info("Air conditioner heating threshold set to %f°C", this.conditionerHeatingThreshold);
-        callback();
-      });
-    this.conditionerService.getCharacteristic(this.hap.Characteristic.CoolingThresholdTemperature)
-      .setProps({ minValue: PKOM_MIN_COOL_TEMP, maxValue: PKOM_MAX_COOL_TEMP, minStep: PKOM_TEMP_STEP })
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.log.debug("Air conditioner cooling threshold is %f°C", this.conditionerCoolingThreshold);
-        callback(undefined, this.conditionerCoolingThreshold);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.conditionerCoolingThreshold = value as number;
-        this.conditionerThresholdChanged();
-        
-        this.log.info("Air conditioner cooling threshold set to %f°C", this.conditionerCoolingThreshold);
-        callback();
-      });
+		this.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
+		callback();
+	  });
+	this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Current air conditioner state is " + this.conditionerCurrentState);
+		callback(undefined, this.conditionerCurrentState);
+	  });
+	this.conditionerService.getCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Target air conditioner state is " + this.conditionerTargetState);
+		callback(undefined, this.conditionerTargetState);
+	  })
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.conditionerTargetState = value as number;
+		this.conditionerTargetStateChanged();
+	
+		this.log.info("Air conditioner state set to " + this.conditionerTargetState);
+		callback();
+	  });
+	this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Air conditioner temperature %f°C", this.conditionerCurrentTemperature.toFixed(1));
+		callback(undefined, this.conditionerCurrentTemperature);
+	  });
+	this.conditionerService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
+	  .updateValue(this.conditionerHeatingThreshold)
+	  .setProps({ minValue: PKOM_MIN_HEAT_TEMP, maxValue: PKOM_MAX_HEAT_TEMP, minStep: PKOM_TEMP_STEP })
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Air conditioner heating threshold is %f°C", this.conditionerHeatingThreshold);
+		callback(undefined, this.conditionerHeatingThreshold);
+	  })
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.conditionerHeatingThreshold = value as number;
+		this.conditionerThresholdChanged();
+	
+		this.log.info("Air conditioner heating threshold set to %f°C", this.conditionerHeatingThreshold);
+		callback();
+	  });
+	this.conditionerService.getCharacteristic(this.hap.Characteristic.CoolingThresholdTemperature)
+	  .updateValue(this.conditionerCoolingThreshold)
+	  .setProps({ minValue: PKOM_MIN_COOL_TEMP, maxValue: PKOM_MAX_COOL_TEMP, minStep: PKOM_TEMP_STEP })
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.log.debug("Air conditioner cooling threshold is %f°C", this.conditionerCoolingThreshold);
+		callback(undefined, this.conditionerCoolingThreshold);
+	  })
+	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+		this.conditionerCoolingThreshold = value as number;
+		this.conditionerThresholdChanged();
+	
+		this.log.info("Air conditioner cooling threshold set to %f°C", this.conditionerCoolingThreshold);
+		callback();
+	  });
 
 	this.heaterService.getCharacteristic(this.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
+		this.willObserveModbusStatus();
 		this.log.debug("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
 		callback(undefined, this.waterHeaterActive);
 	  })
@@ -706,6 +725,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		callback();
 	  });
 	this.heaterService.getCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState)
+	  .updateValue(this.waterHeaterCurrentState)
 	  .setProps({ validValues: [0, 1, 2] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
@@ -713,6 +733,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		callback(undefined, this.waterHeaterCurrentState);
 	  });
 	this.heaterService.getCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState)
+	  .updateValue(this.waterHeaterTargetState)
 	  .setProps({ validValues: [1] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
@@ -732,8 +753,11 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		this.log.debug("Water heater temperature is %f°C", this.waterHeaterCurrentTemperature.toFixed(1));
 		callback(undefined, this.waterHeaterCurrentTemperature);
 	  });
+	// Avoid generating an exception by changing first max, then current value, then min
 	this.heaterService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
-	  .setProps({ minValue: PKOM_MIN_BOILER_TEMP, maxValue:(this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP), minStep: PKOM_TEMP_STEP })
+	  .setProps({ maxValue:(this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP), minStep: PKOM_TEMP_STEP })
+	  .updateValue(this.waterHeaterHeatingThreshold)
+	  .setProps({ minValue: PKOM_MIN_BOILER_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
 		this.log.debug("Water heater threshold is %f°C", this.waterHeaterHeatingThreshold);

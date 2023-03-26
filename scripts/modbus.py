@@ -119,6 +119,7 @@ else:
 if (verb == "get" or verb == "set"):
 	try:
 		# Setup instrument using serial port name & address (ignored for demo mode)
+		# PKOM uses modbus 8E1 setup at 19200 bauds over slave address 41
 		import serial
 		import minimalmodbus
 	
