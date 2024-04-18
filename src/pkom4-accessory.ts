@@ -13,16 +13,17 @@ import {
 const MANUFACTURER_NAME = "Pichler";
 const MODEL_NAME_FULL = "PKOM4 Classic";
 const MODEL_NAME_LIGHT = "PKOM4 Trend";
-const SERIAL_NUMBER = "Q87E31YL";
+const SERIAL_NUMBER = "F220100001";
 const FIRMWARE_VERSION = "1.0";
 const MANUAL_MODE_DURATION = 600000;
-const MODBUS_POLLING_PERIOD = 300000;
+const MODBUS_POLLING_PERIOD = 60000;
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;
 const FAN_SPEED_TOLERANCE = 2;
 
 const PKOM_AIR_QUALITY_SCALE = [ 0.0, 0.0, 400.0, 1000.0, 1500.0, 2000.0 ];
 const PKOM_AIR_ROTATION_SCALE = [ 25.0, 50.0, 75.0, 90.0 ];
 
+const PKOM_MODE_UNSUPPORTED = -1;
 const PKOM_MODE_OFF = 0;
 const PKOM_MODE_SUMMER = 1;
 const PKOM_MODE_WINTER = 2;
@@ -34,10 +35,14 @@ const PKOM_SPEED_LEVEL_LOW = 1;
 const PKOM_SPEED_LEVEL_NORMAL = 2;
 const PKOM_SPEED_LEVEL_ACTIVE = 3;
 const PKOM_SPEED_LEVEL_HIGH = 4;
+const PKOM_COOLING_OFF = 0;
+const PKOM_COOLING_ON = 1;
+const PKOM_COOLING_ECO = 2;
 
 const PKOM_PURIFIER_HYSTERESIS = 250.0;
 const PKOM_DEHUMID_HYSTERESIS = 15.0;
-const PKOM_MIN_BOILER_TEMP = 35;
+const PKOM_HEAT_HYSTERESIS = 0.5;
+const PKOM_MIN_BOILER_TEMP = 45;
 const PKOM_MAX_BOILER_PUMP_TEMP = 55;
 const PKOM_MAX_BOILER_RESISTANCE_TEMP = 65;
 const PKOM_MIN_DEHUMID_HUMID = 60;
@@ -52,8 +57,8 @@ const PKOM_HUMID_STEP = 1;
 const PKOM_HUMID_LEVEL = PKOM_SPEED_LEVEL_LOW;
 const PKOM_DEHUMID_LEVEL = PKOM_SPEED_LEVEL_ACTIVE;
 const PKOM_PURIFIER_LEVEL = PKOM_SPEED_LEVEL_HIGH;
-const PKOM_FILTER_DURATION_ALERT = 8280.0;	// 15 days before 1 year
-const PKOM_FILTER_MAX_DURATION = 8760.0; // 1 year
+const PKOM_FILTER_DURATION_ALERT = 360.0;	// 15 days (hours)
+const PKOM_FILTER_MAX_DURATION = 2400.0; 	// 100 days (hours)
 
 const PKOM_DEMO_BOILER_TEMP = 47.0;
 const PKOM_DEMO_BOILER_THRESHOLD = 55.0;
@@ -71,34 +76,36 @@ const PKOM_DEMO_OPTIONS = 4;
 
 const MODBUS_FLOAT_EPSILON = 0.01;	// Maximal precision being 2 digits, ignore lower value delta
 const MODBUS_ADDR_MODE = 0;						// ENUM, RW
-const MODBUS_ADDR_COOLING = 9;					// BOOL, RW
-const MODBUS_ADDR_SPEED_LEVEL = 46;				// ENUM, RW
+const MODBUS_ADDR_COOLING = 37;					// INT, RO (W)
+const MODBUS_ADDR_USER_SPEED_LEVEL = 46;		// ENUM, RW
 const MODBUS_ADDR_AUTO_SPEED_LEVEL = 58;		// ENUM, RW
-const MODBUS_ADDR_HEATING = 136;				// BOOL, RW
+const MODBUS_ADDR_ACTUAL_SPEED_LEVEL = 191;		// ENUM, RO	- see also 194
+const MODBUS_ADDR_HEATING = 37;					// INT, RO (W)
 const MODBUS_ADDR_ECO_TIME = 137;				// BOOL, RW
-const MODBUS_ADDR_COOL_ENABLED = 1001;			// BOOL, RW
-const MODBUS_ADDR_HEAT_ENABLED = 1002;			// BOOL, RW
-const MODBUS_ADDR_HUMID_ENABLED = 1003;			// BOOL, RW
-const MODBUS_ADDR_DIOXIDE_ENABLED = 1004;		// BOOL, RW
+const MODBUS_ADDR_COOL_ENABLED = 9;				// INT, RW (No, Yes, Eco)
+const MODBUS_ADDR_HEAT_ENABLED = 56;			// BOOL, RW
+const MODBUS_ADDR_HUMID_ENABLED = 75;			// BOOL, RW
+const MODBUS_ADDR_DIOXIDE_ENABLED = 71;			// BOOL, RW
+const MODBUS_ADDR_NORMAL_THRESHOLD = 10;		// FIXED, RW
+const MODBUS_ADDR_ECO_THRESHOLD = 11;			// FIXED, RW
 const MODBUS_ADDR_HEAT_THRESHOLD = 201;			// FIXED, RW
-const MODBUS_ADDR_COOL_THRESHOLD = 29;			// FIXED, RW
+const MODBUS_ADDR_COOL_THRESHOLD = 19;			// FIXED, RW
 const MODBUS_ADDR_MAX_HUMID_THRESHOLD = 102;	// FIXED, RW
 const MODBUS_ADDR_MIN_HUMID_THRESHOLD = 103;	// FIXED, RW
 const MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD = 101;	// INT, RW
-const MODBUS_ADDR_MIN_BOILER_THRESHOLD = 166;	// FIXED, RW
+const MODBUS_ADDR_MIN_BOILER_THRESHOLD = 129;	// FIXED, RW
 const MODBUS_ADDR_AIR_DIOXIDE = 483;			// INT, RO
 const MODBUS_ADDR_AIR_HUMID = 484;				// FIXED, RO
-const MODBUS_ADDR_AIR_TEMP = 153;				// FIXED, RO
-const MODBUS_ADDR_BOILER_TEMP = 196;			// FIXED, RO
-const MODBUS_ADDR_BOILER_ENERGY = 38;			// INT, RO
-const MODBUS_ADDR_BOILER_HEATING = 1005;		// BOOL, RO
-const MODBUS_ADDR_FILTER_DURATION = 315;		// INT, RO
+const MODBUS_ADDR_AIR_TEMP = 1019;				// FIXED, RO
+const MODBUS_ADDR_BOILER_ENABLED = 136;			// BOOL, RW
+const MODBUS_ADDR_BOILER_TEMP = 162;			// FIXED, RO
+const MODBUS_ADDR_BOILER_ENERGY = 38;			// INT, RO (kWh)
+const MODBUS_ADDR_BOILER_HEATING = 30;			// INT, RO (Remaining time) - see also 24 (W)
+const MODBUS_ADDR_FILTER_ELAPSED_TIME = 315;	// INT, RW
 const MODBUS_ADDR_SERIAL_NUMBER = 1006;			// STRING, RO
 const MODBUS_ADDR_FIRMWARE_VERSION = 36;		// FIXED, RO
-const MODBUS_ADDR_FIRM_VMC_VERSION = 11;		// FIXED, RO
-const MODBUS_ADDR_FIRM_PUMP_VERSION = 208;		// FIXED, RO
-const MODBUS_ADDR_HARDWARE_OPTIONS = 149;		// INT, RO
-const MODBUS_ADDR_HARDWARE_SENSORS = 16;		// INT, RO
+const MODBUS_ADDR_HARDWARE_OPTIONS = 149;		// INT, RO (Temp sensor, Heat resistance)
+const MODBUS_ADDR_HARDWARE_SENSORS = 16;		// INT, RW (CO2 & Hum sensors)
 
 const CMV_NAME = "CMV";
 const OUT_FILTER_NAME = "Outdoor Air Filter Maintenance";
@@ -119,6 +126,7 @@ class ModbusSession {
   private registersCache: Record<number, any>;
   private registersModified: Record<number, boolean>;
   private readonly registersAddress: Array<number>;
+  private readonly registersIsDecimal: Array<number>;
   private readonly readOnly: boolean;
   private readonly demoMode: boolean;
   private readonly debugLevel: number;
@@ -138,14 +146,17 @@ class ModbusSession {
 	this.registersAddress = [
   		MODBUS_ADDR_MODE,
   		MODBUS_ADDR_COOLING,
-  		MODBUS_ADDR_SPEED_LEVEL,
+  		MODBUS_ADDR_USER_SPEED_LEVEL,
   		MODBUS_ADDR_AUTO_SPEED_LEVEL,
+  		MODBUS_ADDR_ACTUAL_SPEED_LEVEL,
   		MODBUS_ADDR_HEATING,
   		MODBUS_ADDR_ECO_TIME,
   		MODBUS_ADDR_COOL_ENABLED,
   		MODBUS_ADDR_HEAT_ENABLED,
   		MODBUS_ADDR_HUMID_ENABLED,
   		MODBUS_ADDR_DIOXIDE_ENABLED,
+  		MODBUS_ADDR_NORMAL_THRESHOLD,
+  		MODBUS_ADDR_ECO_THRESHOLD,
   		MODBUS_ADDR_HEAT_THRESHOLD,
   		MODBUS_ADDR_COOL_THRESHOLD,
   		MODBUS_ADDR_MAX_HUMID_THRESHOLD,
@@ -155,14 +166,48 @@ class ModbusSession {
   		MODBUS_ADDR_AIR_DIOXIDE,
   		MODBUS_ADDR_AIR_HUMID,
   		MODBUS_ADDR_AIR_TEMP,
+  		MODBUS_ADDR_BOILER_ENABLED,
   		MODBUS_ADDR_BOILER_TEMP,
   		MODBUS_ADDR_BOILER_ENERGY,
   		MODBUS_ADDR_BOILER_HEATING,
-  		MODBUS_ADDR_FILTER_DURATION,
+  		MODBUS_ADDR_FILTER_ELAPSED_TIME,
   		MODBUS_ADDR_SERIAL_NUMBER,
 		MODBUS_ADDR_FIRMWARE_VERSION,
   		MODBUS_ADDR_HARDWARE_OPTIONS,
   		MODBUS_ADDR_HARDWARE_SENSORS
+	];
+	this.registersIsDecimal = [
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		false,
+  		true,
+  		true,
+  		true,
+  		true,
+  		true,
+  		true,
+  		false,
+  		true,
+  		false,
+  		true,
+  		true,
+  		false,
+  		true,
+  		false,
+  		false,
+  		false,
+  		false,
+		false,
+  		false,
+  		false
 	];
 	
 	this.initToDefaults(this.demoMode);
@@ -176,23 +221,28 @@ class ModbusSession {
   	this.registersValue[MODBUS_ADDR_SERIAL_NUMBER] = (demoMode ? SERIAL_NUMBER : "");
   	this.registersValue[MODBUS_ADDR_COOLING] = false;
   	this.registersValue[MODBUS_ADDR_HEATING] = false;
+    this.registersValue[MODBUS_ADDR_ECO_TIME] = 0;
   	this.registersValue[MODBUS_ADDR_BOILER_HEATING] = false;
   	this.registersValue[MODBUS_ADDR_COOL_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_HUMID_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_DIOXIDE_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_MODE] = (demoMode ? PKOM_MODE_AUTO : PKOM_MODE_OFF);
-  	this.registersValue[MODBUS_ADDR_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
+  	this.registersValue[MODBUS_ADDR_USER_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
   	this.registersValue[MODBUS_ADDR_AUTO_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
+  	this.registersValue[MODBUS_ADDR_ACTUAL_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
   	this.registersValue[MODBUS_ADDR_AIR_DIOXIDE] = (demoMode ? PKOM_DEMO_AIR_DIOXIDE : 0.0);
   	this.registersValue[MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD] = (demoMode ? PKOM_DEMO_DIOXIDE_THRESHOLD : 0.0);
   	this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = (demoMode ? PKOM_DEMO_HUMID_THRESHOLD : PKOM_MIN_DEHUMID_HUMID);
   	this.registersValue[MODBUS_ADDR_AIR_HUMID] = (demoMode ? PKOM_DEMO_AIR_HUMID : 0.0);
   	this.registersValue[MODBUS_ADDR_AIR_TEMP] = (demoMode ? PKOM_DEMO_AIR_TEMP : 0.0);
+  	this.registersValue[MODBUS_ADDR_NORMAL_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
+  	this.registersValue[MODBUS_ADDR_ECO_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
   	this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
   	this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = (demoMode ? PKOM_DEMO_COOL_TEMP : PKOM_MIN_COOL_TEMP);
+  	this.registersValue[MODBUS_ADDR_BOILER_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? PKOM_DEMO_BOILER_TEMP : 0.0);
   	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? PKOM_DEMO_BOILER_THRESHOLD : PKOM_MIN_BOILER_TEMP);
-  	this.registersValue[MODBUS_ADDR_FILTER_DURATION] = (demoMode ? PKOM_DEMO_FILTER_DURATION : 0);
+  	this.registersValue[MODBUS_ADDR_FILTER_ELAPSED_TIME] = (demoMode ? PKOM_DEMO_FILTER_DURATION : 0);
   	this.registersValue[MODBUS_ADDR_BOILER_ENERGY] = (demoMode ? PKOM_DEMO_BOILER_ENERGY : 0);
   	this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? PKOM_DEMO_SENSORS : 0);
   	this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? PKOM_DEMO_OPTIONS : 0);
@@ -301,15 +351,15 @@ class ModbusSession {
 	if (Math.abs(this.registersValue[address] - value) > MODBUS_FLOAT_EPSILON) {
    		this.registersValue[address] = value;
     	this.registersModified[address] = true;
-    	if (address > 1000 && this.debugLevel > 0) {
-  			this.log.debug("Modified modbus registers to %d (#%d)", value, address);
-  		} else if (this.debugLevel > 0) {
+    	if (this.registersIsDecimal[address] && this.debugLevel > 0) {
   			this.log.debug("Modified modbus registers to %f (#%d)", value, address);
+  		} else if (this.debugLevel > 0) {
+  			this.log.debug("Modified modbus registers to %d (#%d)", value, address);
   		}
-	} else if (address > 1000 && this.debugLevel > 0) {
-  		this.log.debug("Ignored modbus registers change from %d to %d (#%d)", this.registersValue[address], value, address);
-	} else if (this.debugLevel > 0) {
+	} else if (this.registersIsDecimal[address] && this.debugLevel > 0) {
   		this.log.debug("Ignored modbus registers change from %f to %f (#%d)", this.registersValue[address], value, address);
+	} else if (this.debugLevel > 0) {
+  		this.log.debug("Ignored modbus registers change from %d to %d (#%d)", this.registersValue[address], value, address);
 	}
   }
   
@@ -338,11 +388,13 @@ export class PKOM4Accessory implements AccessoryPlugin {
   private modbusLoadTimestamp = 0.0;
   
   private pkomMode = 0;
-  private pkomSpeedLevel = 0;
+  private pkomUserSpeedLevel = 0;
+  private pkomActualSpeedLevel = 0;
+  private pkomAutoSpeedLevel = 0;
+  private pkomEcoTime = false;
   private pkomCurrentlyCooling = false;
   private pkomCurrentlyHeating = false;
   private pkomCurrentlyWaterHeating = false;
-  private pkomAutoSpeedLevel = 0;
   private pkomHasWaterHeater = true;
   private pkomHasDioxideSensor = true;
   private pkomHasHumiditySensor = true;
@@ -467,7 +519,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 
   async initAccessories() {
 	
-	this.log.info("Initial Modbus status loading…");
+	this.log.info("Initial Modbus status loadingâ¦");
 
 	await this.loadModbusStatus();
 	
@@ -478,7 +530,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.log.info("Available PKOM options: %s", options);
 	this.log.info("Initial Modbus status load done");
 	
-	this.log.info("Accessories characteristics initializing…");
+	this.log.info("Accessories characteristics initializingâ¦");
 	this.willChangeModbusStatus();
 	
 	this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
@@ -628,7 +680,8 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  });
 	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold)
 	  .updateValue(this.dehumidifierHumidityThreshold)
-	  .setProps({ minValue: PKOM_MIN_DEHUMID_HUMID, maxValue: PKOM_MAX_DEHUMID_HUMID, minStep: PKOM_HUMID_STEP })
+//	  .setProps({ minValue: PKOM_MIN_DEHUMID_HUMID, maxValue: PKOM_MAX_DEHUMID_HUMID, minStep: PKOM_HUMID_STEP })
+      .setProps({ minValue: 0, maxValue: 100, minStep: PKOM_HUMID_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
 		this.log.debug("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
@@ -677,7 +730,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner temperature %f°C", this.conditionerCurrentTemperature.toFixed(1));
+		this.log.debug("Air conditioner temperature %fÂ°C", this.conditionerCurrentTemperature.toFixed(1));
 		callback(undefined, this.conditionerCurrentTemperature);
 	  });
 	this.conditionerService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
@@ -685,14 +738,14 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  .setProps({ minValue: PKOM_MIN_HEAT_TEMP, maxValue: PKOM_MAX_HEAT_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner heating threshold is %f°C", this.conditionerHeatingThreshold);
+		this.log.debug("Air conditioner heating threshold is %fÂ°C", this.conditionerHeatingThreshold);
 		callback(undefined, this.conditionerHeatingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerHeatingThreshold = value as number;
 		this.conditionerThresholdChanged();
 	
-		this.log.info("Air conditioner heating threshold set to %f°C", this.conditionerHeatingThreshold);
+		this.log.info("Air conditioner heating threshold set to %fÂ°C", this.conditionerHeatingThreshold);
 		callback();
 	  });
 	this.conditionerService.getCharacteristic(this.hap.Characteristic.CoolingThresholdTemperature)
@@ -700,14 +753,14 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  .setProps({ minValue: PKOM_MIN_COOL_TEMP, maxValue: PKOM_MAX_COOL_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner cooling threshold is %f°C", this.conditionerCoolingThreshold);
+		this.log.debug("Air conditioner cooling threshold is %fÂ°C", this.conditionerCoolingThreshold);
 		callback(undefined, this.conditionerCoolingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerCoolingThreshold = value as number;
 		this.conditionerThresholdChanged();
 	
-		this.log.info("Air conditioner cooling threshold set to %f°C", this.conditionerCoolingThreshold);
+		this.log.info("Air conditioner cooling threshold set to %fÂ°C", this.conditionerCoolingThreshold);
 		callback();
 	  });
 
@@ -750,7 +803,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.heaterService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Water heater temperature is %f°C", this.waterHeaterCurrentTemperature.toFixed(1));
+		this.log.debug("Water heater temperature is %fÂ°C", this.waterHeaterCurrentTemperature.toFixed(1));
 		callback(undefined, this.waterHeaterCurrentTemperature);
 	  });
 	// Avoid generating an exception by changing first max, then current value, then min
@@ -760,14 +813,14 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  .setProps({ minValue: PKOM_MIN_BOILER_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Water heater threshold is %f°C", this.waterHeaterHeatingThreshold);
+		this.log.debug("Water heater threshold is %fÂ°C", this.waterHeaterHeatingThreshold);
 		callback(undefined, this.waterHeaterHeatingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.waterHeaterHeatingThreshold = value as number;
   		this.waterHeaterTargetStateChanged();
 		
-		this.log.info("Water heater threshold set to %f°C", this.waterHeaterHeatingThreshold);
+		this.log.info("Water heater threshold set to %fÂ°C", this.waterHeaterHeatingThreshold);
 		callback();
 	  });
 
@@ -1031,6 +1084,13 @@ export class PKOM4Accessory implements AccessoryPlugin {
   
   dehumidifierThresholdChanged() {
 	this.willChangeModbusStatus();
+	if (this.dehumidifierHumidityThreshold < PKOM_MIN_DEHUMID_HUMID) {
+		this.dehumidifierHumidityThreshold = PKOM_MIN_DEHUMID_HUMID;
+		this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
+	} else if (this.dehumidifierHumidityThreshold > PKOM_MAX_DEHUMID_HUMID) {
+		this.dehumidifierHumidityThreshold = PKOM_MAX_DEHUMID_HUMID;
+		this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
+	}
   	this.didChangeModbusStatus();
   }
 
@@ -1115,7 +1175,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   startPollingModbusStatus() {
 	let timer = setInterval(() => {
     	void (async () => {
-			this.log.info("Modbus recurrent checking ongoing…");
+			this.log.info("Modbus recurrent checking ongoingâ¦");
 		
 			// Load new register values
 			await this.loadModbusStatus(this.simulate);		
@@ -1126,6 +1186,8 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			}
 
 			// Update implied characteristics
+			this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
+				.updateCharacteristic(this.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
 			this.fanService.updateCharacteristic(this.hap.Characteristic.On, this.fanSwitchedOn);
 			this.fanService.updateCharacteristic(this.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
 			this.conditionerService.updateCharacteristic(this.hap.Characteristic.Active, this.conditionerActive);
@@ -1149,7 +1211,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			this.heaterService.updateCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature, this.waterHeaterHeatingThreshold);
 			this.sensorService.updateCharacteristic(this.hap.Characteristic.AirQuality, this.purifierAirQuality);
 			this.sensorService.updateCharacteristic(this.hap.Characteristic.CarbonDioxideLevel, this.purifierDioxideLevel);
-		
+
 			this.log.info("Modbus recurrent checking done");
 		})();
 	}, MODBUS_POLLING_PERIOD);
@@ -1160,7 +1222,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	// No need for sync update, we're simply accelerating refresh rate
   	// Update timestamp before async call to avoid massive parallel updates
     if ((Date.now() - this.modbusLoadTimestamp) > MODBUS_INTERACTIVE_UPDATE_PERIOD) {
-		this.log.info("Modbus interactive checking ongoing…");
+		this.log.info("Modbus interactive checking ongoingâ¦");
 		this.modbusLoadTimestamp = Date.now();
     	this.loadModbusStatus();
     }
@@ -1193,29 +1255,48 @@ export class PKOM4Accessory implements AccessoryPlugin {
 
   	// Readwrite register are persisted by session under simulation mode
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
-	this.pkomSpeedLevel = this.session.readRegister(MODBUS_ADDR_SPEED_LEVEL);
+  	this.pkomEcoTime = this.session.readRegister(MODBUS_ADDR_ECO_TIME);
+	this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
+	this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
 	this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
 	this.purifierDioxideThreshold = this.session.readRegister(MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD);
 	this.dehumidifierHumidityThreshold = this.session.readRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD);
 	this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_HEAT_THRESHOLD);
 	this.conditionerCoolingThreshold = this.session.readRegister(MODBUS_ADDR_COOL_THRESHOLD);
 	this.waterHeaterHeatingThreshold = this.session.readRegister(MODBUS_ADDR_MIN_BOILER_THRESHOLD);
-	this.pkomFilterDuration = this.session.readRegister(MODBUS_ADDR_FILTER_DURATION);
+	this.pkomFilterDuration = PKOM_FILTER_MAX_DURATION - this.session.readRegister(MODBUS_ADDR_FILTER_ELAPSED_TIME);
 	this.pkomSerialNumber = this.session.readRegister(MODBUS_ADDR_SERIAL_NUMBER);
 	this.pkomFirwmareVersion = this.session.readRegister(MODBUS_ADDR_FIRMWARE_VERSION);
-  	  	
+  	
+  	// Those dynamic registers are skipped under simulation mode
+	if (!this.simulate && this.pkomEcoTime) {
+		this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_ECO_THRESHOLD);
+	} else if (!this.simulate) {
+		this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_NORMAL_THRESHOLD);
+	}
+  	
   	// Those readonly registers are skipped to ensure persistance under simulation mode
   	if (!this.simulate || !this.inited) {
-		this.pkomCurrentlyCooling = this.session.readRegister(MODBUS_ADDR_COOLING);
-		this.pkomCurrentlyHeating = this.session.readRegister(MODBUS_ADDR_HEATING);
 		this.pkomCurrentlyWaterHeating = this.session.readRegister(MODBUS_ADDR_BOILER_HEATING);
 		this.purifierDioxideLevel = this.session.readRegister(MODBUS_ADDR_AIR_DIOXIDE);
 		this.dehumidifierCurrentHumidity = this.session.readRegister(MODBUS_ADDR_AIR_HUMID);
 		this.conditionerCurrentTemperature = this.session.readRegister(MODBUS_ADDR_AIR_TEMP);
 		this.waterHeaterCurrentTemperature = this.session.readRegister(MODBUS_ADDR_BOILER_TEMP);
+		this.waterHeaterActive = this.session.readRegister(MODBUS_ADDR_BOILER_ENABLED);
+		
+		if (this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS)) {
+			this.pkomCurrentlyHeating = (this.session.readRegister(MODBUS_ADDR_HEATING) > 0);
+			this.pkomCurrentlyCooling = false;
+		} else if (this.conditionerCurrentTemperature >= (this.conditionerCoolingThreshold - PKOM_HEAT_HYSTERESIS)) {
+			this.pkomCurrentlyCooling = (this.session.readRegister(MODBUS_ADDR_COOLING) > 0);
+			this.pkomCurrentlyHeating = false;
+		} else {
+			this.pkomCurrentlyHeating = false;
+			this.pkomCurrentlyCooling = false;
+		}
   	}
 
-	let coolEnabled = this.session.readRegister(MODBUS_ADDR_COOL_ENABLED);
+	let coolEnabled = (this.session.readRegister(MODBUS_ADDR_COOL_ENABLED) != PKOM_COOLING_OFF);
   	let dehumidifierActive = this.session.readRegister(MODBUS_ADDR_HUMID_ENABLED);
   	let purifierActive = this.session.readRegister(MODBUS_ADDR_DIOXIDE_ENABLED);
 	let boilerEnergy = this.session.readRegister(MODBUS_ADDR_BOILER_ENERGY);
@@ -1223,11 +1304,10 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	let options = this.session.readRegister(MODBUS_ADDR_HARDWARE_OPTIONS);
   	
 	// Following status are computed
-	this.fanCurrentSpeedLevel = (this.pkomSpeedLevel != PKOM_SPEED_LEVEL_AUTO ? this.pkomSpeedLevel - 1 : this.pkomAutoSpeedLevel - 1);
+	this.fanCurrentSpeedLevel = (this.pkomActualSpeedLevel - 1);
     this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
-	this.filterChangeAlert = (this.pkomFilterDuration > PKOM_FILTER_DURATION_ALERT);
+	this.filterChangeAlert = (this.pkomFilterDuration < PKOM_FILTER_DURATION_ALERT);
 	this.filterLifeLevel = Math.round(this.pkomFilterDuration / PKOM_FILTER_MAX_DURATION * 100.0);
-	this.waterHeaterActive = this.pkomCurrentlyWaterHeating;
 	
 	let currentConditionerStatus = this.hap.Characteristic.CurrentHeaterCoolerState.IDLE;
 	if (this.pkomCurrentlyCooling) {
@@ -1242,9 +1322,9 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	let currentWaterHeaterStatus = (this.pkomCurrentlyWaterHeating ? this.hap.Characteristic.CurrentHeaterCoolerState.HEATING : this.hap.Characteristic.CurrentHeaterCoolerState.IDLE);
 	
 	// Adjust current status based on PKOM automatic behaviour
-	if (this.pkomSpeedLevel >= PKOM_DEHUMID_LEVEL && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold) {
+	if (this.fanCurrentSpeedLevel >= PKOM_DEHUMID_LEVEL && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold) {
 		currentPurifierStatus = this.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
-	} else if (this.pkomSpeedLevel >= PKOM_PURIFIER_LEVEL && this.purifierDioxideLevel > this.purifierDioxideThreshold) {
+	} else if (this.fanCurrentSpeedLevel >= PKOM_PURIFIER_LEVEL && this.purifierDioxideLevel > this.purifierDioxideThreshold) {
 		currentHumidifierStatus = this.hap.Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING;
 	} 
 
@@ -1309,11 +1389,13 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	}
   	
   	// Purifier & dehumidifier status depends on fan mode
-  	this.purifierActive = (this.fanSwitchedOn && purifierActive);
-	this.purifierCurrentState = (this.fanSwitchedOn ? currentPurifierStatus : this.hap.Characteristic.CurrentAirPurifierState.INACTIVE);
-  	this.purifierTargetState = this.hap.Characteristic.TargetAirPurifierState.AUTO;
-	this.dehumidifierActive = (this.fanSwitchedOn && dehumidifierActive);
-	this.dehumidifierCurrentState = (this.fanSwitchedOn ? currentHumidifierStatus : this.hap.Characteristic.CurrentHumidifierDehumidifierState.INACTIVE);
+  	// Note: missing sensor is expected to unpublish the service, but has the plugin do not support
+  	//	dynamic service publication, disable it instead.
+  	this.purifierActive = (this.fanSwitchedOn && this.pkomHasDioxideSensor && purifierActive);
+	this.purifierCurrentState = (this.purifierActive ? currentPurifierStatus : this.hap.Characteristic.CurrentAirPurifierState.INACTIVE);
+  	this.purifierTargetState = (this.purifierManualMode ? this.hap.Characteristic.TargetAirPurifierState.MANUAL : this.hap.Characteristic.TargetAirPurifierState.AUTO);
+	this.dehumidifierActive = (this.fanSwitchedOn && this.pkomHasHumiditySensor && dehumidifierActive);
+	this.dehumidifierCurrentState = (this.dehumidifierActive ? currentHumidifierStatus : this.hap.Characteristic.CurrentHumidifierDehumidifierState.INACTIVE);
   	this.dehumidifierTargetState = this.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
 
 	// Fetch hardware infos
@@ -1343,15 +1425,15 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			this.pkomHasWaterResistance = false;
 			this.pkomHasAirResistance = false;
 			break;
-		case 2:
+		case 1:
 			this.pkomHasWaterResistance = true;
 			this.pkomHasAirResistance = false;
 			break;
-		case 3:
+		case 2:
 			this.pkomHasWaterResistance = false;
 			this.pkomHasAirResistance = true;
 			break;
-		case 4:
+		case 3:
 			this.pkomHasWaterResistance = true;
 			this.pkomHasAirResistance = true;
 			break;
@@ -1376,33 +1458,62 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		this.log.debug("End of async modbus call");
 	}
 	
-	// Save readwrite registers
-  	this.session.writeRegister(MODBUS_ADDR_HEAT_THRESHOLD, this.conditionerHeatingThreshold);
+	// Save writeable registers
+	//
+	// High-level PKOM settings are set, in particular easily-changed comfort threshold.
+	// No calendar options or hardware setup are involved.
    	this.session.writeRegister(MODBUS_ADDR_COOL_THRESHOLD, this.conditionerCoolingThreshold);
    	this.session.writeRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD, this.dehumidifierHumidityThreshold);
   	this.session.writeRegister(MODBUS_ADDR_MIN_BOILER_THRESHOLD, this.waterHeaterHeatingThreshold);
+	
+	// Air heating temperature always reflects eco/normal period
+	if (this.pkomEcoTime) {
+	  	this.session.writeRegister(MODBUS_ADDR_ECO_THRESHOLD, this.conditionerHeatingThreshold);
+	} else {
+	  	this.session.writeRegister(MODBUS_ADDR_NORMAL_THRESHOLD, this.conditionerHeatingThreshold);
+	}
 
-  	let pkomSpeedLevel = (this.simulate || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : PKOM_SPEED_LEVEL_AUTO;
-	let pkomMode = PKOM_MODE_AUTO;
+	// PKOM 'Mode' is used to manage services activation. 'Unsupported Mode' is a transient situation when going through multiple steps
+	//  (e.g turning off fan then water then conditioner to turn all off). In this case register writing is postponed to next valid configuration.
+	// It means in particular that specific features such as anti-frozen, anti-legionel, bypass, etc are always active.
+  	let pkomUserSpeedLevel = (this.simulate || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : PKOM_SPEED_LEVEL_AUTO;
+	let pkomMode = PKOM_MODE_UNSUPPORTED;
 	
 	if (this.holidaysModeSwitchedOn) {
  		pkomMode = PKOM_MODE_HOLIDAYS;
-	} else if (!this.fanSwitchedOn && !this.conditionerActive) {
-	  	pkomMode = PKOM_MODE_BOILER;
- 	} else if (this.fanSwitchedOn && !this.conditionerActive) {
-		pkomMode = PKOM_MODE_SUMMER;
-	} else if (this.fanSwitchedOn && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.HEAT) {
-		pkomMode = PKOM_MODE_WINTER;
-	} else if (this.fanSwitchedOn && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.COOL) {
-		pkomMode = PKOM_MODE_SUMMER;
+ 	} else if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
+	  	pkomMode = PKOM_MODE_OFF;		// All is off
+	} else if (!this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
+	  	pkomMode = PKOM_MODE_BOILER;	// Water only
+	} else if (this.fanSwitchedOn && !this.waterHeaterActive && this.conditionerActive) {
+ 		pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well
+	} else if (this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
+ 		pkomMode = PKOM_MODE_HOLIDAYS;	// Fan only, need to specify duration
+ 	} else if (this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
+		pkomMode = PKOM_MODE_SUMMER;	// No conditioner, need to stop cooling as well
+	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.HEAT) {
+		pkomMode = PKOM_MODE_WINTER;	// Forced heating
+	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.COOL) {
+		pkomMode = PKOM_MODE_SUMMER;	// Forced cooling
+ 	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.AUTO) {
+		pkomMode = PKOM_MODE_AUTO;		// All is on with auto mode
  	}
 	
- 	this.session.writeRegister(MODBUS_ADDR_SPEED_LEVEL, pkomSpeedLevel);
- 	this.session.writeRegister(MODBUS_ADDR_MODE, pkomMode);
-  	this.session.writeRegister(MODBUS_ADDR_COOL_ENABLED, this.conditionerActive);
+	// Changing fan speed is just an 'intention'. It might be ignored in case of higher priority task
+	// 	(e.g heating) ; this is equivalent to changing the speed level from PKOM terminal main menu.
+	// Changing mode is equivalent to changing the mode on the PKOM terminal main menu (see also above)
+	// Changing humidity control is equivalent to changing from PKOM terminal main menu
+	// Changing dioxyde control is equivalent to changing from PKOM terminal main menu
+	// Changing cooling behaviour is equivalent to updating 'air' settings (will toggle between on or off - do not support eco)
+	// Changing boiler behaviour is equivalent to updating 'water' settings (will toggle between on or off)
+ 	this.session.writeRegister(MODBUS_ADDR_USER_SPEED_LEVEL, pkomUserSpeedLevel);
   	this.session.writeRegister(MODBUS_ADDR_HUMID_ENABLED, this.dehumidifierActive);
   	this.session.writeRegister(MODBUS_ADDR_DIOXIDE_ENABLED, this.purifierActive);
-  	this.session.writeRegister(MODBUS_ADDR_BOILER_HEATING, this.waterHeaterActive);
+ 	if (pkomMode != PKOM_MODE_UNSUPPORTED) {
+	 	this.session.writeRegister(MODBUS_ADDR_MODE, pkomMode);
+	  	this.session.writeRegister(MODBUS_ADDR_COOL_ENABLED, (this.conditionerActive || (pkomMode != PKOM_MODE_SUMMER)));
+	  	this.session.writeRegister(MODBUS_ADDR_BOILER_ENABLED, (this.waterHeaterActive || (pkomMode != PKOM_MODE_AUTO)));
+ 	}
   	
 	// Send modified registers
   	await this.session.end();
@@ -1417,10 +1528,10 @@ export class PKOM4Accessory implements AccessoryPlugin {
     let humidityIncrement = 0;
     let increaseRate = Math.max((PKOM_MIN_DEHUMID_HUMID - this.dehumidifierCurrentHumidity) / 100.0, 0.1) ** 2;
     let decreaseRate = Math.max((this.dehumidifierCurrentHumidity - PKOM_MIN_HUMID_HUMID) / 100.0, 0.1) ** 2;
-	this.pkomSpeedLevel = this.fanCurrentSpeedLevel + 1;
+	this.pkomUserSpeedLevel = this.fanCurrentSpeedLevel + 1;
     
 	if (this.fanSwitchedOn) {
-		switch (this.pkomSpeedLevel) {
+		switch (this.pkomUserSpeedLevel) {
 			case PKOM_SPEED_LEVEL_LOW:
 				dioxideIncrement = 5;
 				humidityIncrement = 5.0 * increaseRate;
@@ -1445,38 +1556,38 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	
 	this.purifierDioxideLevel = Math.min(Math.max(this.purifierDioxideLevel + dioxideIncrement, 450), 4999);
 	this.dehumidifierCurrentHumidity =  Math.min(Math.max(this.dehumidifierCurrentHumidity + humidityIncrement, 10), 89);
-	this.log.info("Simulation - air quality modulating (∆h:%d, ∆d:%d)", humidityIncrement, dioxideIncrement);
+	this.log.info("Simulation - air quality modulating (âh:%d, âd:%d)", humidityIncrement, dioxideIncrement);
 
-	if (this.purifierActive && this.purifierDioxideLevel > this.purifierDioxideThreshold && this.pkomSpeedLevel < PKOM_PURIFIER_LEVEL) {
-		this.pkomSpeedLevel = PKOM_PURIFIER_LEVEL;
+	if (this.purifierActive && this.purifierDioxideLevel > this.purifierDioxideThreshold && this.pkomUserSpeedLevel < PKOM_PURIFIER_LEVEL) {
+		this.pkomUserSpeedLevel = PKOM_PURIFIER_LEVEL;
 		this.log.info("Simulation - starting purifying speed increase");
-	} else if (this.dehumidifierActive && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold && this.pkomSpeedLevel < PKOM_DEHUMID_LEVEL) {
-		this.pkomSpeedLevel = PKOM_DEHUMID_LEVEL;
+	} else if (this.dehumidifierActive && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold && this.pkomUserSpeedLevel < PKOM_DEHUMID_LEVEL) {
+		this.pkomUserSpeedLevel = PKOM_DEHUMID_LEVEL;
 		this.log.info("Simulation - starting dehumidifying speed increase");
-	} else if (this.dehumidifierActive && this.dehumidifierCurrentHumidity < PKOM_MIN_HUMID_HUMID && this.pkomSpeedLevel > PKOM_HUMID_LEVEL) {
-		this.pkomSpeedLevel = PKOM_HUMID_LEVEL;
+	} else if (this.dehumidifierActive && this.dehumidifierCurrentHumidity < PKOM_MIN_HUMID_HUMID && this.pkomUserSpeedLevel > PKOM_HUMID_LEVEL) {
+		this.pkomUserSpeedLevel = PKOM_HUMID_LEVEL;
 		this.log.info("Simulation - starting humidifying speed decrease");
-	} else if (this.pkomSpeedLevel == PKOM_PURIFIER_LEVEL && !this.fanManualMode && !this.dehumidifierManualMode && !this.purifierManualMode
+	} else if (this.pkomUserSpeedLevel == PKOM_PURIFIER_LEVEL && !this.fanManualMode && !this.dehumidifierManualMode && !this.purifierManualMode
 			&& (!this.purifierActive || this.purifierDioxideLevel <= (this.purifierDioxideThreshold - PKOM_PURIFIER_HYSTERESIS))) {
-		this.pkomSpeedLevel = PKOM_SPEED_LEVEL_NORMAL;
+		this.pkomUserSpeedLevel = PKOM_SPEED_LEVEL_NORMAL;
 		this.log.info("Simulation - back to normal speed");
-	} else if (this.pkomSpeedLevel == PKOM_DEHUMID_LEVEL && !this.fanManualMode && !this.dehumidifierManualMode && !this.purifierManualMode
+	} else if (this.pkomUserSpeedLevel == PKOM_DEHUMID_LEVEL && !this.fanManualMode && !this.dehumidifierManualMode && !this.purifierManualMode
 			&& (!this.dehumidifierActive || this.dehumidifierCurrentHumidity <= (this.dehumidifierHumidityThreshold - PKOM_DEHUMID_HYSTERESIS))
 			&& (!this.dehumidifierActive || this.dehumidifierCurrentHumidity >= (PKOM_MIN_HUMID_HUMID + PKOM_DEHUMID_HYSTERESIS))) {
-		this.pkomSpeedLevel = PKOM_SPEED_LEVEL_NORMAL;
+		this.pkomUserSpeedLevel = PKOM_SPEED_LEVEL_NORMAL;
 		this.log.info("Simulation - back to normal speed");
 	} else {
 		this.log.debug("Simulation - humid:%d of %d%%, diox:%d of %d ppm, fan:%s, dehumid:%s, purif:%s", this.dehumidifierCurrentHumidity.toFixed(2), this.dehumidifierHumidityThreshold, this.purifierDioxideLevel, this.purifierDioxideThreshold, (this.fanManualMode ? "manual" : "auto"), (this.dehumidifierManualMode ? "manual" : "auto"), (this.purifierManualMode ? "manual" : "auto"));
 	}
 
-    this.pkomCurrentlyWaterHeating = this.waterHeaterActive;
+    this.pkomCurrentlyWaterHeating = (this.waterHeaterCurrentState == this.hap.Characteristic.CurrentHeaterCoolerState.HEATING);
 	if (this.pkomCurrentlyWaterHeating) {
 		this.waterHeaterCurrentTemperature = this.waterHeaterCurrentTemperature + 0.5;
 		if (this.waterHeaterCurrentTemperature >= this.waterHeaterHeatingThreshold) {
 			this.pkomCurrentlyWaterHeating = false;
 			this.log.info("Simulation - stoping water heating");
 		} else {
-			this.log.debug("Simulation - water:%d of %d°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+			this.log.debug("Simulation - water:%d of %dÂ°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 		}
 	} else {
 		this.waterHeaterCurrentTemperature = this.waterHeaterCurrentTemperature - 0.1;
@@ -1484,29 +1595,29 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			this.pkomCurrentlyWaterHeating = true;
 			this.log.info("Simulation - starting water heating");
 		} else {
-			this.log.debug("Simulation - water:%d of %d°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+			this.log.debug("Simulation - water:%d of %dÂ°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 		}
 	}
 	
-	if (!this.pkomCurrentlyHeating && this.conditionerCurrentTemperature < this.conditionerHeatingThreshold) {
+	if (!this.pkomCurrentlyHeating && this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS))Â {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = true;
 		this.log.info("Simulation - starting air heating");
-	} else if (!this.pkomCurrentlyCooling && this.conditionerCurrentTemperature > this.conditionerCoolingThreshold) {
+	} else if (!this.pkomCurrentlyCooling && this.conditionerCurrentTemperature > (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS))Â {
 		this.pkomCurrentlyCooling = true;
 		this.pkomCurrentlyHeating = false;
 		this.log.info("Simulation - starting air cooling");
-	} else if (this.pkomCurrentlyHeating && this.conditionerCurrentTemperature <= this.conditionerCoolingThreshold && this.conditionerCurrentTemperature >= this.conditionerHeatingThreshold) {
+	} else if (this.pkomCurrentlyHeating && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS))Â {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = false;
 		this.log.info("Simulation - stoping air heating");
-	} else if (this.pkomCurrentlyCooling && this.conditionerCurrentTemperature <= this.conditionerCoolingThreshold && this.conditionerCurrentTemperature >= this.conditionerHeatingThreshold) {
+	} else if (this.pkomCurrentlyCooling && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold - PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS))Â {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = false;
 		this.log.info("Simulation - stoping air cooling");
 	}
 
-	this.fanCurrentSpeedLevel = this.pkomSpeedLevel - 1;
+	this.fanCurrentSpeedLevel = this.pkomUserSpeedLevel - 1;
     this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
   }
 
