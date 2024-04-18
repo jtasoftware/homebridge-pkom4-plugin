@@ -24,6 +24,7 @@ import syslog
 import platform
 
 READ_HOLDING_REGISTER	= 3
+READ_INPUT_REGISTER	= 4
 WRITE_SINGLE_REGISTER	= 6
 
 if (len(sys.argv) > 1):
@@ -40,64 +41,116 @@ if (param2 == ""):
 modbusRegistersType = {
   '0': 'unsigned',
   '9': 'unsigned',
-  '11': 'unsigned',
+  '10': 'signed',
+  '11': 'signed',
   '16': 'unsigned',
-  '29': 'signed',
+  '19': 'signed',
+  '24': 'unsigned',
+  '25': 'unsigned',
+  '30': 'unsigned',
   '36': 'unsigned',
+  '37': 'signed',
   '38': 'unsigned',
   '46': 'unsigned',
+  '56': 'unsigned',
   '58': 'unsigned',
+  '71': 'unsigned',
+  '75': 'unsigned',
   '101': 'unsigned',
   '102': 'unsigned',
   '103': 'unsigned',
+  '129': 'signed',
   '136': 'unsigned',
   '137': 'unsigned',
   '149': 'unsigned',
-  '153': 'signed',
-  '166': 'unsigned',
-  '196': 'unsigned',
+  '162': 'signed',
+  '191': 'unsigned',
   '201': 'signed',
-  '208': 'unsigned',
   '315': 'unsigned',
   '483': 'unsigned',
   '484': 'unsigned',
-  '1001': 'unsigned',
-  '1002': 'unsigned',
-  '1003': 'unsigned',
-  '1004': 'unsigned',
-  '1005': 'unsigned',
-  '1006': 'string'
+#  '1006': 'string',
+  '1019': 'signed'
 }
 modbusRegistersDecimal = {
   '0': 0,
   '9': 0,
+  '10': 2,
   '11': 2,
   '16': 0,
-  '29': 2,
+  '19': 2,
+  '24': 1,
+  '25': 1,
+  '30': 0,
   '36': 1,
+  '37': 0,
   '38': 0,
   '46': 0,
+  '56': 0,
   '58': 0,
+  '71': 0,
+  '75': 0,
   '101': 0,
   '102': 1,
   '103': 1,
+  '129': 2,
   '136': 0,
   '137': 0,
   '149': 0,
-  '153': 2,
-  '166': 2,
-  '196': 2,
+  '162': 2,
+  '191': 0,
   '201': 2,
-  '208': 0,
   '315': 0,
   '483': 0,
   '484': 1,
-  '1001': 0,
-  '1002': 0,
-  '1003': 0,
-  '1004': 0,
-  '1005': 0,
-  '1006': 4
+#  '1006': 4,
+  '1019': 2
+}
+modbusRegistersMode = {
+  '0': 'RW',
+  '9': 'RW',
+  '10': 'RW',
+  '11': 'RW',
+  '16': 'RW',
+  '19': 'RW',
+  '24': 'RO',
+  '25': 'RO',
+  '30': 'RO',
+  '36': 'RO',
+  '37': 'RO',
+  '38': 'RO',
+  '46': 'RW',
+  '56': 'RW',
+  '58': 'RO',
+  '71': 'RW',
+  '75': 'RW',
+  '101': 'RW',
+  '102': 'RW',
+  '103': 'RW',
+  '129': 'RW',
+  '136': 'RW',
+  '137': 'RW',
+  '149': 'RW',
+  '162': 'RO',
+  '191': 'RO',
+  '201': 'RW',
+  '315': 'RW',
+  '483': 'RO',
+  '484': 'RO',
+#  '1006': '',
+  '1019': 'RO'
+}
+modbusRegistersMigration = {
+  '29': '19',
+  '153': '1019',
+  '166': '129',
+  '196': '162',
+  '1001': '9',
+  '1002': '56',
+  '1003': '75',
+  '1004': '71',
+  '1005': '30',
+  '1006': '129'
 }
 modbusRegisters = json.loads(param2)
 
@@ -109,12 +162,12 @@ syslog.syslog(syslog.LOG_INFO, "Ongoing Modbus communication (" + verb + ")")
 # /dev/ttyAMA0 is used on Raspberry with RS485 headcan
 # /dev/ttyUSB0 is used on Raspberry with FTDI-based USB adapters
 # /dev/cu.usbserial-XXX is used on Mac with FTDI-based USB adapters
-# You can either change this code or use symlink e.g /dev/serial0 -> /dev/ttyUSB0
+# You can either change this code or use symlink e.g /dev/serial0 -> /dev/cu.usbserial-AQ027PRJ
 platform = platform.system()
 if (platform == "Darwin"):
-	serialPort = '/dev/cu.usbserial-AQ027PRJ'
-else:
 	serialPort = '/dev/serial0'
+else:
+	serialPort = '/dev/ttyUSB0'
 
 if (verb == "get" or verb == "set"):
 	try:
@@ -128,20 +181,41 @@ if (verb == "get" or verb == "set"):
 		instrument.serial.parity = serial.PARITY_EVEN
 
 		# Handle modbus communications
-		if (verb == "get"):
-			for addressStr in modbusRegisters.keys():
-				address = int(addressStr)
-				if (modbusRegistersType[addressStr] == 'string'):
-					value = instrument.read_string(address, modbusRegistersDecimal[addressStr], READ_HOLDING_REGISTER)
+		for addressStr in modbusRegisters.keys():
+			# Migration might be required for retro-compatibility with legacy code
+			if (addressStr in modbusRegistersMigration.keys()):
+				alias = modbusRegistersMigration[addressStr]
+			else:
+				alias = addressStr
+			
+			address = int(alias)
+
+			# Holding & input behaviour is defined by 'mode' definition - undefined addresses are skipped
+			if (verb == "get" and modbusRegistersMode[alias] == 'RW'):
+				mode = READ_HOLDING_REGISTER
+			elif (verb == "get" and modbusRegistersMode[alias] == 'RO'):
+				mode = READ_INPUT_REGISTER
+			elif (verb == "set" and modbusRegistersMode[alias] == 'RW'):
+				mode = WRITE_SINGLE_REGISTER
+			else:
+				mode = 0
+
+			# Specific trick for duplicated adresses with holding & input variants
+			# Input version is used by adding 1000 by caller 
+			if (address > 1000):
+				address = address - 1000
+				mode = READ_INPUT_REGISTER
+
+			if (verb == "get" and mode != 0):
+				if (modbusRegistersType[alias] == 'string'):
+					value = instrument.read_string(address, modbusRegistersDecimal[alias], mode)
 				else:
-					value = instrument.read_register(address, modbusRegistersDecimal[addressStr], READ_HOLDING_REGISTER, (modbusRegistersType[addressStr] == 'signed'))
+					value = instrument.read_register(address, modbusRegistersDecimal[alias], mode, (modbusRegistersType[alias] == 'signed'))
 				modbusRegisters[addressStr] = value
 				syslog.syslog(syslog.LOG_INFO, "Received register " + addressStr + ":" + str(value) + " from bus " + serialPort)
-		elif (verb == "set"):
-			for addressStr in modbusRegisters.keys():
-				address = int(addressStr)
+			elif (verb == "set" and mode != 0):
 				value = modbusRegisters[addressStr]
-				instrument.write_register(address, value, modbusRegistersDecimal[addressStr], WRITE_SINGLE_REGISTER, (modbusRegistersType[addressStr] == 'signed'))
+				instrument.write_register(address, value, modbusRegistersDecimal[alias], mode, (modbusRegistersType[alias] == 'signed'))
 				syslog.syslog(syslog.LOG_INFO, "Writing register " + addressStr + ":" + str(value) + " to bus " + serialPort)
 	
 	except ImportError:
@@ -167,6 +241,7 @@ elif (verb == "demo"):
 	  '0': 3,
 	  '9': 0,
 	  '16': 3,
+	  '19': 20.5,
 	  '29': 26,
 	  '36': '1.1',
 	  '38': 1,
@@ -174,20 +249,16 @@ elif (verb == "demo"):
 	  '58': 2,
 	  '101': 1000,
 	  '102': 70,
+	  '129': 55,
 	  '136': 0,
-	  '149': 4,
+	  '149': 3,
 	  '153': 25,
-	  '166': 55,
-	  '196': 47,
+	  '162': 47,
 	  '201': 22,
-	  '315': 4320,
+	  '315': 470,
 	  '483': 951,
 	  '484': 65,
-	  '1001': 1,
-	  '1003': 1,
-	  '1004': 1,
-	  '1005': 1,
-	  '1006': 'Q87E31YL'
+	  '1006': 'F220100001'
 	}
 	
 # Return results
