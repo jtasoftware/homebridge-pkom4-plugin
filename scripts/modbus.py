@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 #
-# Installation
+# Modbus script for PKOM Homebridge plugin
+# This script if used to send modbus messages through serial interface
+#
+# Installation notes
 # Install MinimalModbus dependency using command line "python3 -m pip install minimalmodbus"
 # This script supports both Headcan & FTDI USB adapters on Raspberry or FTDI adapters on Mac
 #	no extra driver required on both platforms, you'll only need to adjust adapter ID bellow
