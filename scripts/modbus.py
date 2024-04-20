@@ -24,7 +24,7 @@ import syslog
 import platform
 
 READ_HOLDING_REGISTER	= 3
-READ_INPUT_REGISTER	= 4
+READ_INPUT_REGISTER		= 4
 WRITE_SINGLE_REGISTER	= 6
 
 if (len(sys.argv) > 1):

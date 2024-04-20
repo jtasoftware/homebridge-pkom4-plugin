@@ -69,7 +69,7 @@ const PKOM_DEMO_AIR_TEMP = 25.0;
 const PKOM_DEMO_AIR_DIOXIDE = 851.0;
 const PKOM_DEMO_DIOXIDE_THRESHOLD = 1000.0;
 const PKOM_DEMO_HUMID_THRESHOLD = 70.0;
-const PKOM_DEMO_FILTER_DURATION = 4320;	// 24*180 days
+const PKOM_DEMO_FILTER_DURATION = 192.0;	// 8 days (hours)
 const PKOM_DEMO_BOILER_ENERGY = 1;
 const PKOM_DEMO_SENSORS = 3;
 const PKOM_DEMO_OPTIONS = 4;
@@ -119,14 +119,14 @@ const ECO_MODE_NAME = "Eco Mode";
 
 const { spawn } = require('child_process');
 const scriptsFolder = (__dirname + "/../scripts/");
-const pythonPath = "/usr/bin/python3";
+const pythonPath = (__dirname + "/../bin/python3");
 
 class ModbusSession {
   private registersValue: Record<number, any>;
   private registersCache: Record<number, any>;
   private registersModified: Record<number, boolean>;
   private readonly registersAddress: Array<number>;
-  private readonly registersIsDecimal: Array<number>;
+  private readonly registersIsDecimal: Array<boolean>;
   private readonly readOnly: boolean;
   private readonly demoMode: boolean;
   private readonly debugLevel: number;
@@ -242,7 +242,7 @@ class ModbusSession {
   	this.registersValue[MODBUS_ADDR_BOILER_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? PKOM_DEMO_BOILER_TEMP : 0.0);
   	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? PKOM_DEMO_BOILER_THRESHOLD : PKOM_MIN_BOILER_TEMP);
-  	this.registersValue[MODBUS_ADDR_FILTER_ELAPSED_TIME] = (demoMode ? PKOM_DEMO_FILTER_DURATION : 0);
+  	this.registersValue[MODBUS_ADDR_FILTER_ELAPSED_TIME] = (demoMode ? (PKOM_FILTER_MAX_DURATION - PKOM_DEMO_FILTER_DURATION) : 0);
   	this.registersValue[MODBUS_ADDR_BOILER_ENERGY] = (demoMode ? PKOM_DEMO_BOILER_ENERGY : 0);
   	this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? PKOM_DEMO_SENSORS : 0);
   	this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? PKOM_DEMO_OPTIONS : 0);
@@ -519,7 +519,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 
   async initAccessories() {
 	
-	this.log.info("Initial Modbus status loadingâ¦");
+	this.log.info("Initial Modbus status loading…");
 
 	await this.loadModbusStatus();
 	
@@ -530,7 +530,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.log.info("Available PKOM options: %s", options);
 	this.log.info("Initial Modbus status load done");
 	
-	this.log.info("Accessories characteristics initializingâ¦");
+	this.log.info("Accessories characteristics initializing…");
 	this.willChangeModbusStatus();
 	
 	this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
@@ -730,7 +730,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner temperature %fÂ°C", this.conditionerCurrentTemperature.toFixed(1));
+		this.log.debug("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
 		callback(undefined, this.conditionerCurrentTemperature);
 	  });
 	this.conditionerService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
@@ -738,14 +738,14 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  .setProps({ minValue: PKOM_MIN_HEAT_TEMP, maxValue: PKOM_MAX_HEAT_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner heating threshold is %fÂ°C", this.conditionerHeatingThreshold);
+		this.log.debug("Air conditioner heating threshold is %f °C", this.conditionerHeatingThreshold);
 		callback(undefined, this.conditionerHeatingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerHeatingThreshold = value as number;
 		this.conditionerThresholdChanged();
 	
-		this.log.info("Air conditioner heating threshold set to %fÂ°C", this.conditionerHeatingThreshold);
+		this.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
 		callback();
 	  });
 	this.conditionerService.getCharacteristic(this.hap.Characteristic.CoolingThresholdTemperature)
@@ -753,14 +753,14 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  .setProps({ minValue: PKOM_MIN_COOL_TEMP, maxValue: PKOM_MAX_COOL_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner cooling threshold is %fÂ°C", this.conditionerCoolingThreshold);
+		this.log.debug("Air conditioner cooling threshold is %f °C", this.conditionerCoolingThreshold);
 		callback(undefined, this.conditionerCoolingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerCoolingThreshold = value as number;
 		this.conditionerThresholdChanged();
 	
-		this.log.info("Air conditioner cooling threshold set to %fÂ°C", this.conditionerCoolingThreshold);
+		this.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
 		callback();
 	  });
 
@@ -803,7 +803,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.heaterService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Water heater temperature is %fÂ°C", this.waterHeaterCurrentTemperature.toFixed(1));
+		this.log.debug("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
 		callback(undefined, this.waterHeaterCurrentTemperature);
 	  });
 	// Avoid generating an exception by changing first max, then current value, then min
@@ -813,14 +813,14 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	  .setProps({ minValue: PKOM_MIN_BOILER_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Water heater threshold is %fÂ°C", this.waterHeaterHeatingThreshold);
+		this.log.debug("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
 		callback(undefined, this.waterHeaterHeatingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.waterHeaterHeatingThreshold = value as number;
   		this.waterHeaterTargetStateChanged();
 		
-		this.log.info("Water heater threshold set to %fÂ°C", this.waterHeaterHeatingThreshold);
+		this.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
 		callback();
 	  });
 
@@ -1175,7 +1175,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   startPollingModbusStatus() {
 	let timer = setInterval(() => {
     	void (async () => {
-			this.log.info("Modbus recurrent checking ongoingâ¦");
+			this.log.info("Modbus recurrent checking ongoing…");
 		
 			// Load new register values
 			await this.loadModbusStatus(this.simulate);		
@@ -1222,7 +1222,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	// No need for sync update, we're simply accelerating refresh rate
   	// Update timestamp before async call to avoid massive parallel updates
     if ((Date.now() - this.modbusLoadTimestamp) > MODBUS_INTERACTIVE_UPDATE_PERIOD) {
-		this.log.info("Modbus interactive checking ongoingâ¦");
+		this.log.info("Modbus interactive checking ongoing…");
 		this.modbusLoadTimestamp = Date.now();
     	this.loadModbusStatus();
     }
@@ -1556,7 +1556,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	
 	this.purifierDioxideLevel = Math.min(Math.max(this.purifierDioxideLevel + dioxideIncrement, 450), 4999);
 	this.dehumidifierCurrentHumidity =  Math.min(Math.max(this.dehumidifierCurrentHumidity + humidityIncrement, 10), 89);
-	this.log.info("Simulation - air quality modulating (âh:%d, âd:%d)", humidityIncrement, dioxideIncrement);
+	this.log.info("Simulation - air quality modulating (∆h:%d, ∆d:%d)", humidityIncrement, dioxideIncrement);
 
 	if (this.purifierActive && this.purifierDioxideLevel > this.purifierDioxideThreshold && this.pkomUserSpeedLevel < PKOM_PURIFIER_LEVEL) {
 		this.pkomUserSpeedLevel = PKOM_PURIFIER_LEVEL;
@@ -1587,7 +1587,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			this.pkomCurrentlyWaterHeating = false;
 			this.log.info("Simulation - stoping water heating");
 		} else {
-			this.log.debug("Simulation - water:%d of %dÂ°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+			this.log.debug("Simulation - water:%d of %d °C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 		}
 	} else {
 		this.waterHeaterCurrentTemperature = this.waterHeaterCurrentTemperature - 0.1;
@@ -1595,23 +1595,23 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			this.pkomCurrentlyWaterHeating = true;
 			this.log.info("Simulation - starting water heating");
 		} else {
-			this.log.debug("Simulation - water:%d of %dÂ°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+			this.log.debug("Simulation - water:%d of %d °C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 		}
 	}
 	
-	if (!this.pkomCurrentlyHeating && this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS))Â {
+	if (!this.pkomCurrentlyHeating && this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = true;
 		this.log.info("Simulation - starting air heating");
-	} else if (!this.pkomCurrentlyCooling && this.conditionerCurrentTemperature > (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS))Â {
+	} else if (!this.pkomCurrentlyCooling && this.conditionerCurrentTemperature > (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = true;
 		this.pkomCurrentlyHeating = false;
 		this.log.info("Simulation - starting air cooling");
-	} else if (this.pkomCurrentlyHeating && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS))Â {
+	} else if (this.pkomCurrentlyHeating && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = false;
 		this.log.info("Simulation - stoping air heating");
-	} else if (this.pkomCurrentlyCooling && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold - PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS))Â {
+	} else if (this.pkomCurrentlyCooling && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold - PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = false;
 		this.log.info("Simulation - stoping air cooling");
