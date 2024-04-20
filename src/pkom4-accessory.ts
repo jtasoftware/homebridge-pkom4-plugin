@@ -1,20 +1,13 @@
-import {
-  AccessoryPlugin,
-  CharacteristicValue,
-  CharacteristicEventTypes,
-  CharacteristicGetCallback,
-  CharacteristicSetCallback,
-  HAP,
-  Logging,
-  Service,
-  PlatformConfig
-} from "homebridge";
+import { CharacteristicValue, CharacteristicEventTypes, CharacteristicGetCallback, CharacteristicSetCallback, HAP, Logging, Service, PlatformConfig, PlatformAccessory } from "homebridge";
+import { SERIAL_NUMBER, FIRMWARE_VERSION, MANUFACTURER_NAME, MODEL_NAME_FULL, MODEL_NAME_LIGHT, APP_MATCHING_ID, PLUGIN_VERSION, BOILER_NAME, HOLIDAY_MODE_NAME } from "./settings";
+import { CMV_NAME, FILTER_NAME, AIR_QUALITY_NAME, AIR_CONDITIONER_NAME, PURIFIER_NAME, DEHUMIDIFIER_NAME } from "./settings";
+import { ModbusSession, MODBUS_ADDR_MODE, MODBUS_ADDR_COOLING, MODBUS_ADDR_USER_SPEED_LEVEL, MODBUS_ADDR_AUTO_SPEED_LEVEL, MODBUS_ADDR_ACTUAL_SPEED_LEVEL, MODBUS_ADDR_HEATING } from "./modbus";
+import { MODBUS_ADDR_ECO_TIME, MODBUS_ADDR_COOL_ENABLED, MODBUS_ADDR_HUMID_ENABLED, MODBUS_ADDR_DIOXIDE_ENABLED, MODBUS_ADDR_NORMAL_THRESHOLD, MODBUS_ADDR_ECO_THRESHOLD } from "./modbus";
+import { MODBUS_ADDR_HEAT_THRESHOLD, MODBUS_ADDR_COOL_THRESHOLD, MODBUS_ADDR_MAX_HUMID_THRESHOLD, MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD, MODBUS_ADDR_MIN_BOILER_THRESHOLD } from "./modbus";
+import { MODBUS_ADDR_AIR_DIOXIDE, MODBUS_ADDR_AIR_HUMID, MODBUS_ADDR_AIR_TEMP, MODBUS_ADDR_BOILER_ENABLED, MODBUS_ADDR_BOILER_TEMP, MODBUS_ADDR_BOILER_ENERGY } from "./modbus";
+import { MODBUS_ADDR_BOILER_HEATING, MODBUS_ADDR_FILTER_ELAPSED_TIME, MODBUS_ADDR_SERIAL_NUMBER, MODBUS_ADDR_FIRMWARE_VERSION, MODBUS_ADDR_HARDWARE_OPTIONS, MODBUS_ADDR_HARDWARE_SENSORS } from "./modbus";
+import { PichlerPlatform } from "./pichler-platform";
 
-const MANUFACTURER_NAME = "Pichler";
-const MODEL_NAME_FULL = "PKOM4 Classic";
-const MODEL_NAME_LIGHT = "PKOM4 Trend";
-const SERIAL_NUMBER = "F220100001";
-const FIRMWARE_VERSION = "1.0";
 const MANUAL_MODE_DURATION = 600000;
 const MODBUS_POLLING_PERIOD = 60000;
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;
@@ -22,6 +15,17 @@ const FAN_SPEED_TOLERANCE = 2;
 
 const PKOM_AIR_QUALITY_SCALE = [ 0.0, 0.0, 400.0, 1000.0, 1500.0, 2000.0 ];
 const PKOM_AIR_ROTATION_SCALE = [ 25.0, 50.0, 75.0, 90.0 ];
+
+const PKOM_INFO_UUID = "FFFFFFFF-0000-0000-0000-000000000001";
+const PKOM_CMV_UUID = "FFFFFFFF-0000-0000-0000-000000000002";
+const PKOM_IN_FILTER_UUID = "FFFFFFFF-0000-0000-0000-000000000003";
+const PKOM_OUT_FILTER_UUID = "FFFFFFFF-0000-0000-0000-000000000004";
+const PKOM_AIR_QUALITY_UUID = "FFFFFFFF-0000-0000-0000-000000000005";
+const PKOM_AIR_CONDITIONER_UUID = "FFFFFFFF-0000-0000-0000-000000000006";
+const PKOM_PURIFIER_UUID = "FFFFFFFF-0000-0000-0000-000000000007";
+const PKOM_DEHUMIDIFIER_UUID = "FFFFFFFF-0000-0000-0000-000000000008";
+const PKOM_BOILER_UUID = "FFFFFFFF-0000-0000-0000-000000000009";
+const PKOM_HOLIDAY_MODE_UUID = "FFFFFFFF-0000-0000-0000-00000000000A";
 
 const PKOM_MODE_UNSUPPORTED = -1;
 const PKOM_MODE_OFF = 0;
@@ -38,7 +42,6 @@ const PKOM_SPEED_LEVEL_HIGH = 4;
 const PKOM_COOLING_OFF = 0;
 const PKOM_COOLING_ON = 1;
 const PKOM_COOLING_ECO = 2;
-
 const PKOM_PURIFIER_HYSTERESIS = 250.0;
 const PKOM_DEHUMID_HYSTERESIS = 15.0;
 const PKOM_HEAT_HYSTERESIS = 0.5;
@@ -60,323 +63,11 @@ const PKOM_PURIFIER_LEVEL = PKOM_SPEED_LEVEL_HIGH;
 const PKOM_FILTER_DURATION_ALERT = 360.0;	// 15 days (hours)
 const PKOM_FILTER_MAX_DURATION = 2400.0; 	// 100 days (hours)
 
-const PKOM_DEMO_BOILER_TEMP = 47.0;
-const PKOM_DEMO_BOILER_THRESHOLD = 55.0;
-const PKOM_DEMO_COOL_TEMP = 26.0;
-const PKOM_DEMO_HEAT_TEMP = 22.0;
-const PKOM_DEMO_AIR_HUMID = 65.0;
-const PKOM_DEMO_AIR_TEMP = 25.0;
-const PKOM_DEMO_AIR_DIOXIDE = 851.0;
-const PKOM_DEMO_DIOXIDE_THRESHOLD = 1000.0;
-const PKOM_DEMO_HUMID_THRESHOLD = 70.0;
-const PKOM_DEMO_FILTER_DURATION = 192.0;	// 8 days (hours)
-const PKOM_DEMO_BOILER_ENERGY = 1;
-const PKOM_DEMO_SENSORS = 3;
-const PKOM_DEMO_OPTIONS = 4;
+export class PKOM4Accessory {
 
-const MODBUS_FLOAT_EPSILON = 0.01;	// Maximal precision being 2 digits, ignore lower value delta
-const MODBUS_ADDR_MODE = 0;						// ENUM, RW
-const MODBUS_ADDR_COOLING = 37;					// INT, RO (W)
-const MODBUS_ADDR_USER_SPEED_LEVEL = 46;		// ENUM, RW
-const MODBUS_ADDR_AUTO_SPEED_LEVEL = 58;		// ENUM, RW
-const MODBUS_ADDR_ACTUAL_SPEED_LEVEL = 191;		// ENUM, RO	- see also 194
-const MODBUS_ADDR_HEATING = 37;					// INT, RO (W)
-const MODBUS_ADDR_ECO_TIME = 137;				// BOOL, RW
-const MODBUS_ADDR_COOL_ENABLED = 9;				// INT, RW (No, Yes, Eco)
-const MODBUS_ADDR_HEAT_ENABLED = 56;			// BOOL, RW
-const MODBUS_ADDR_HUMID_ENABLED = 75;			// BOOL, RW
-const MODBUS_ADDR_DIOXIDE_ENABLED = 71;			// BOOL, RW
-const MODBUS_ADDR_NORMAL_THRESHOLD = 10;		// FIXED, RW
-const MODBUS_ADDR_ECO_THRESHOLD = 11;			// FIXED, RW
-const MODBUS_ADDR_HEAT_THRESHOLD = 201;			// FIXED, RW
-const MODBUS_ADDR_COOL_THRESHOLD = 19;			// FIXED, RW
-const MODBUS_ADDR_MAX_HUMID_THRESHOLD = 102;	// FIXED, RW
-const MODBUS_ADDR_MIN_HUMID_THRESHOLD = 103;	// FIXED, RW
-const MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD = 101;	// INT, RW
-const MODBUS_ADDR_MIN_BOILER_THRESHOLD = 129;	// FIXED, RW
-const MODBUS_ADDR_AIR_DIOXIDE = 483;			// INT, RO
-const MODBUS_ADDR_AIR_HUMID = 484;				// FIXED, RO
-const MODBUS_ADDR_AIR_TEMP = 1019;				// FIXED, RO
-const MODBUS_ADDR_BOILER_ENABLED = 136;			// BOOL, RW
-const MODBUS_ADDR_BOILER_TEMP = 162;			// FIXED, RO
-const MODBUS_ADDR_BOILER_ENERGY = 38;			// INT, RO (kWh)
-const MODBUS_ADDR_BOILER_HEATING = 30;			// INT, RO (Remaining time) - see also 24 (W)
-const MODBUS_ADDR_FILTER_ELAPSED_TIME = 315;	// INT, RW
-const MODBUS_ADDR_SERIAL_NUMBER = 1006;			// STRING, RO
-const MODBUS_ADDR_FIRMWARE_VERSION = 36;		// FIXED, RO
-const MODBUS_ADDR_HARDWARE_OPTIONS = 149;		// INT, RO (Temp sensor, Heat resistance)
-const MODBUS_ADDR_HARDWARE_SENSORS = 16;		// INT, RW (CO2 & Hum sensors)
-
-const CMV_NAME = "CMV";
-const OUT_FILTER_NAME = "Outdoor Air Filter Maintenance";
-const IN_FILTER_NAME = "Extracted Air Filter Maintenance";
-const AIR_QUALITY_NAME = "Air Quality Sensor";
-const AIR_CONDITIONER_NAME = "Air Conditioner";
-const PURIFIER_NAME = "Carbon Dioxide Purifier";
-const DEHUMIDIFIER_NAME = "Dehumidifier";
-const BOILER_NAME = "Water Heater";
-const ECO_MODE_NAME = "Eco Mode";
-
-const { spawn } = require('child_process');
-const scriptsFolder = (__dirname + "/../scripts/");
-const pythonPath = (__dirname + "/../bin/python3");
-
-class ModbusSession {
-  private registersValue: Record<number, any>;
-  private registersCache: Record<number, any>;
-  private registersModified: Record<number, boolean>;
-  private readonly registersAddress: Array<number>;
-  private readonly registersIsDecimal: Array<boolean>;
-  private readonly readOnly: boolean;
-  private readonly demoMode: boolean;
-  private readonly debugLevel: number;
-  private readonly log: Logging;
-  public  ongoing: boolean;
-
-  constructor(log: Logging, readOnly: boolean, demoMode: boolean, debugLevel: number) {
-  	this.log = log;
-  	this.readOnly = readOnly;
-  	this.demoMode = demoMode;
-  	this.debugLevel = debugLevel;
-	this.ongoing = false;
-	
-	this.registersCache = {};
-	this.registersValue = {};
-	this.registersModified = {};
-	this.registersAddress = [
-  		MODBUS_ADDR_MODE,
-  		MODBUS_ADDR_COOLING,
-  		MODBUS_ADDR_USER_SPEED_LEVEL,
-  		MODBUS_ADDR_AUTO_SPEED_LEVEL,
-  		MODBUS_ADDR_ACTUAL_SPEED_LEVEL,
-  		MODBUS_ADDR_HEATING,
-  		MODBUS_ADDR_ECO_TIME,
-  		MODBUS_ADDR_COOL_ENABLED,
-  		MODBUS_ADDR_HEAT_ENABLED,
-  		MODBUS_ADDR_HUMID_ENABLED,
-  		MODBUS_ADDR_DIOXIDE_ENABLED,
-  		MODBUS_ADDR_NORMAL_THRESHOLD,
-  		MODBUS_ADDR_ECO_THRESHOLD,
-  		MODBUS_ADDR_HEAT_THRESHOLD,
-  		MODBUS_ADDR_COOL_THRESHOLD,
-  		MODBUS_ADDR_MAX_HUMID_THRESHOLD,
-  		MODBUS_ADDR_MIN_HUMID_THRESHOLD,
-  		MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD,
-  		MODBUS_ADDR_MIN_BOILER_THRESHOLD,
-  		MODBUS_ADDR_AIR_DIOXIDE,
-  		MODBUS_ADDR_AIR_HUMID,
-  		MODBUS_ADDR_AIR_TEMP,
-  		MODBUS_ADDR_BOILER_ENABLED,
-  		MODBUS_ADDR_BOILER_TEMP,
-  		MODBUS_ADDR_BOILER_ENERGY,
-  		MODBUS_ADDR_BOILER_HEATING,
-  		MODBUS_ADDR_FILTER_ELAPSED_TIME,
-  		MODBUS_ADDR_SERIAL_NUMBER,
-		MODBUS_ADDR_FIRMWARE_VERSION,
-  		MODBUS_ADDR_HARDWARE_OPTIONS,
-  		MODBUS_ADDR_HARDWARE_SENSORS
-	];
-	this.registersIsDecimal = [
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		false,
-  		true,
-  		true,
-  		true,
-  		true,
-  		true,
-  		true,
-  		false,
-  		true,
-  		false,
-  		true,
-  		true,
-  		false,
-  		true,
-  		false,
-  		false,
-  		false,
-  		false,
-		false,
-  		false,
-  		false
-	];
-	
-	this.initToDefaults(this.demoMode);
-	this.log.info("Modbus session created with log level: %d", debugLevel);
-  }
-  
-  initToDefaults(demoMode: boolean) {
-  	// Default values (demo mode)
-  	// TBD: move to Python interface using "demo" verb
-  	this.registersValue[MODBUS_ADDR_FIRMWARE_VERSION] = (demoMode ? FIRMWARE_VERSION : "");
-  	this.registersValue[MODBUS_ADDR_SERIAL_NUMBER] = (demoMode ? SERIAL_NUMBER : "");
-  	this.registersValue[MODBUS_ADDR_COOLING] = false;
-  	this.registersValue[MODBUS_ADDR_HEATING] = false;
-    this.registersValue[MODBUS_ADDR_ECO_TIME] = 0;
-  	this.registersValue[MODBUS_ADDR_BOILER_HEATING] = false;
-  	this.registersValue[MODBUS_ADDR_COOL_ENABLED] = demoMode;
-  	this.registersValue[MODBUS_ADDR_HUMID_ENABLED] = demoMode;
-  	this.registersValue[MODBUS_ADDR_DIOXIDE_ENABLED] = demoMode;
-  	this.registersValue[MODBUS_ADDR_MODE] = (demoMode ? PKOM_MODE_AUTO : PKOM_MODE_OFF);
-  	this.registersValue[MODBUS_ADDR_USER_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
-  	this.registersValue[MODBUS_ADDR_AUTO_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
-  	this.registersValue[MODBUS_ADDR_ACTUAL_SPEED_LEVEL] = PKOM_SPEED_LEVEL_NORMAL;
-  	this.registersValue[MODBUS_ADDR_AIR_DIOXIDE] = (demoMode ? PKOM_DEMO_AIR_DIOXIDE : 0.0);
-  	this.registersValue[MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD] = (demoMode ? PKOM_DEMO_DIOXIDE_THRESHOLD : 0.0);
-  	this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = (demoMode ? PKOM_DEMO_HUMID_THRESHOLD : PKOM_MIN_DEHUMID_HUMID);
-  	this.registersValue[MODBUS_ADDR_AIR_HUMID] = (demoMode ? PKOM_DEMO_AIR_HUMID : 0.0);
-  	this.registersValue[MODBUS_ADDR_AIR_TEMP] = (demoMode ? PKOM_DEMO_AIR_TEMP : 0.0);
-  	this.registersValue[MODBUS_ADDR_NORMAL_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
-  	this.registersValue[MODBUS_ADDR_ECO_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
-  	this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
-  	this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = (demoMode ? PKOM_DEMO_COOL_TEMP : PKOM_MIN_COOL_TEMP);
-  	this.registersValue[MODBUS_ADDR_BOILER_ENABLED] = demoMode;
-  	this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? PKOM_DEMO_BOILER_TEMP : 0.0);
-  	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? PKOM_DEMO_BOILER_THRESHOLD : PKOM_MIN_BOILER_TEMP);
-  	this.registersValue[MODBUS_ADDR_FILTER_ELAPSED_TIME] = (demoMode ? (PKOM_FILTER_MAX_DURATION - PKOM_DEMO_FILTER_DURATION) : 0);
-  	this.registersValue[MODBUS_ADDR_BOILER_ENERGY] = (demoMode ? PKOM_DEMO_BOILER_ENERGY : 0);
-  	this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? PKOM_DEMO_SENSORS : 0);
-  	this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? PKOM_DEMO_OPTIONS : 0);
-  }
-
-  async begin(): Promise<any> {
-  	if (this.ongoing) throw 'Session error: begin/end calls are unbalanced';
-  	this.ongoing = true;
-  	
-	for (let address of this.registersAddress) {
-		this.registersModified[address] = false;
-	}
-	
-	this.log.info("Async modbus 'get registers' called");
-	
-	// Use Python command to read registers. This will loose any previous change
-	// that was not sent. It will also behave as a slave considering any concurent change
-	// that occurred. From that point, and until end() call will turn into a master
-	// for pending changes (will overwrite concurent changes).
-	let promise = await this.callPython("modbus.py", "get", this.registersValue)
-		.then((result: Record<number, any>) => {
-     		this.registersValue = result;
-     		if (this.debugLevel > 1) {
-	   			this.log.debug("Async modbus completed with registers: %s", this.registersValue);
-     		}
-  		})
-  		.catch((error: Error) => {
-    		this.log.info("Error getting modbus registers %s", error.message);
-  		});
-
-  	return promise;
-  }
-
-  async end(): Promise<any> {
-    if (!this.ongoing) throw 'Session error: begin/end calls are unbalanced';
-   
-	// Filter registers that were modified - avoid erasing concurent changes for
-	//	not conflicting registers. Won't manage real conflicts however.
-	this.registersCache = {};
-	
-  	for (let address of this.registersAddress) {
-		if (this.registersModified[address] && !this.readOnly) {
-			this.registersCache[address] = this.registersValue[address];
-		}
-	}
-	
-	if (Object.keys(this.registersCache).length > 0) {
-		this.log.info("Async modbus 'set registers' called with: %s", this.registersCache);
- 	} else {
- 		this.log.info("Async modbus 'set registers' skipped (no modification)");
- 	}
-
- 	this.ongoing = false;
-
-	// Use Python command to write modified registers
-	let promise = await this.callPython("modbus.py", "set", this.registersCache)
-		.catch((error: Error) => {
-			this.log.info("Error setting modbus registers %s", error.message);
-		});
- 	
-  	return promise;
-  }
-
-  async callPython(scriptName: string, verb: string, param?: any): Promise<any> {
-	return new Promise(function(successCallback, failureCallback) {
-		try {
-			const pyArgs = [scriptsFolder + scriptName, verb, JSON.stringify(param)];
-			const pyProcess = spawn(pythonPath, pyArgs );
-			let result = "";
-			let errorMsg = "";
-	
-			pyProcess.stdout.on('data', (data: any) => {
-				result += data.toString();
-			});
-
-			pyProcess.stderr.on('data', (data: any) => {
-				errorMsg += data.toString();
-			});
-
-			pyProcess.stdout.on("end", () => {
-				if (errorMsg == "") {
-					successCallback(JSON.parse(result));
-					successCallback(result);
-				} else {
-					const error = new Error(errorMsg);
-					failureCallback(error);
-				}
-			})
-		}
-		catch(error) {
-			failureCallback(error);
-		}
-	});
-  }
-
-  writeRegister(address: number, value: any) {
-  	// As the client acts as master between begin/end block, we shouldn't assume
-  	// value will be preserved if it's not overwritten.
-  	// However this is a huge optimisation that need to be considered as well:
-  	//	- For floats, only negligeable delta will be lost - should not be problematic
-  	//	- For ints, state change will always be reported
-  	//	- Only unchanged int might become out-of-synch. It will be fixed on next begin/end block
-  	//	and simply means that concurrency favor changed state over status quo.
-  	//	Could be problematic for linked variables which is not the case here.
-  	//	The only caution point here is about local caches such as time-bombed manual modes.
-	if (Math.abs(this.registersValue[address] - value) > MODBUS_FLOAT_EPSILON) {
-   		this.registersValue[address] = value;
-    	this.registersModified[address] = true;
-    	if (this.registersIsDecimal[address] && this.debugLevel > 0) {
-  			this.log.debug("Modified modbus registers to %f (#%d)", value, address);
-  		} else if (this.debugLevel > 0) {
-  			this.log.debug("Modified modbus registers to %d (#%d)", value, address);
-  		}
-	} else if (this.registersIsDecimal[address] && this.debugLevel > 0) {
-  		this.log.debug("Ignored modbus registers change from %f to %f (#%d)", this.registersValue[address], value, address);
-	} else if (this.debugLevel > 0) {
-  		this.log.debug("Ignored modbus registers change from %d to %d (#%d)", this.registersValue[address], value, address);
-	}
-  }
-  
-  readRegister(address: number): any {
-    if (this.debugLevel > 1) {
-		this.log.debug("Reading modbus register %d:%d", address, this.registersValue[address]);
-	}
-	return this.registersValue[address];
-  }
-}
-
-export class PKOM4Accessory implements AccessoryPlugin {
-
-  private readonly log: Logging;
-  private readonly hap: HAP;
-  private readonly name: string;
   private readonly session: ModbusSession;
+  private readonly platform: PichlerPlatform;
+  private readonly accessory: PlatformAccessory;
 
   private simulate = false;
   private dryRegion = false;
@@ -449,103 +140,104 @@ export class PKOM4Accessory implements AccessoryPlugin {
 
   private holidaysModeSwitchedOn = false;
 
-  private readonly informationService: Service;
-  private readonly fanService: Service;
-  private readonly filterService: Service;
-  private readonly sensorService: Service;
-  private readonly purifierService: Service;
-  private readonly dehumidifierService: Service;
-  private readonly conditionerService: Service;
-  private readonly heaterService: Service;
-  private readonly holidaysModeService: Service;
+  private informationService: Service;
+  private fanService: Service;
+  private filterService: Service;
+  private sensorService: Service;
+  private purifierService: Service;
+  private dehumidifierService: Service;
+  private conditionerService: Service;
+  private heaterService: Service;
+  private holidaysModeService: Service;
 
-  constructor(hap: HAP, log: Logging, config: PlatformConfig, name: string) {
-	this.hap = hap;
-    this.log = log;
-    this.name = name;
-	this.simulate = config["simulate"];
-	this.readOnly = config["readOnly"];
-	this.modbusDebugLevel = config["modbusDebugLevel"]
+  constructor(platform: PichlerPlatform, accessory: PlatformAccessory) {
+	this.accessory = accessory;
+	this.simulate = platform.config["simulate"];
+	this.readOnly = platform.config["readOnly"];
+	this.modbusDebugLevel = platform.config["modbusDebugLevel"]
 	this.dryRegion = false;
 	this.inited = false;
-
-	this.log.info("Platform config: " + (this.simulate && this.readOnly ? "simulate, read-only" : (this.simulate ? "simulate" : (this.readOnly ? "read-only" : "none"))));	
 	
-    this.informationService = new this.hap.Service.AccessoryInformation(name)
-    this.informationService.setCharacteristic(this.hap.Characteristic.Manufacturer, MANUFACTURER_NAME)
-      .setCharacteristic(this.hap.Characteristic.Model, "PKOM4")
-      .setCharacteristic(this.hap.Characteristic.SerialNumber, "--------")
-      .setCharacteristic(this.hap.Characteristic.FirmwareRevision, FIRMWARE_VERSION);
-    this.log.info("Hardware informations for '%s' created", name);
+	this.platform = platform;
+	this.platform.log.info("Platform config: " + (this.simulate && this.readOnly ? "simulate, read-only" : (this.simulate ? "simulate" : (this.readOnly ? "read-only" : "none"))));
+	
+	this.informationService = this.accessory.getService(PKOM_INFO_UUID) || this.accessory.addService(this.platform.api.hap.Service.AccessoryInformation, this.accessory.displayName, PKOM_INFO_UUID);
+    this.informationService.setCharacteristic(this.platform.api.hap.Characteristic.Manufacturer, MANUFACTURER_NAME)
+      .setCharacteristic(this.platform.api.hap.Characteristic.Model, "PKOM4")
+      .setCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, "--------")
+//      .setCharacteristic(this.platform.api.hap.Characteristic.AppMatchingIdentifier, APP_MATCHING_ID)
+      .setCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, FIRMWARE_VERSION)
+      .setCharacteristic(this.platform.api.hap.Characteristic.SoftwareRevision, PLUGIN_VERSION);
+    this.platform.log.info("Hardware informations for '%s' created", this.accessory.displayName);
   	
-    this.fanService = new this.hap.Service.Fan(CMV_NAME);
+    this.fanService = this.accessory.getService(PKOM_CMV_UUID) || this.accessory.addService(this.platform.api.hap.Service.Fan, CMV_NAME, PKOM_CMV_UUID);
     this.fanService.setPrimaryService(true);
-    this.log.info("Mechanical ventilation for '%s' created", name);
+    this.platform.log.info("Mechanical ventilation for '%s' created", this.accessory.displayName);
     
-    this.filterService = new this.hap.Service.FilterMaintenance(OUT_FILTER_NAME);
-    this.filterService.subtype = OUT_FILTER_NAME;
-    this.log.info("Filter maintenance for '%s' created", name);
+    this.filterService = this.accessory.getService(PKOM_IN_FILTER_UUID) || this.accessory.addService(this.platform.api.hap.Service.FilterMaintenance, FILTER_NAME, PKOM_IN_FILTER_UUID);
+    this.filterService.subtype = FILTER_NAME;
+    this.platform.log.info("Filter maintenance for '%s' created", this.accessory.displayName);
 
-	this.sensorService = new this.hap.Service.AirQualitySensor(AIR_QUALITY_NAME);
-	this.log.info("Air quality sensor for '%s' created", name);
+    this.sensorService = this.accessory.getService(PKOM_AIR_QUALITY_UUID) || this.accessory.addService(this.platform.api.hap.Service.AirQualitySensor, AIR_QUALITY_NAME, PKOM_AIR_QUALITY_UUID);
+	this.platform.log.info("Air quality sensor for '%s' created", this.accessory.displayName);
 
-	this.purifierService = new this.hap.Service.AirPurifier(PURIFIER_NAME);
+    this.purifierService = this.accessory.getService(PKOM_PURIFIER_UUID) || this.accessory.addService(this.platform.api.hap.Service.AirPurifier, PURIFIER_NAME, PKOM_PURIFIER_UUID);
     this.purifierService.addLinkedService(this.fanService);
 	this.purifierService.addLinkedService(this.sensorService);
 	this.purifierService.addLinkedService(this.filterService);
-	this.log.info("Air purifier for '%s' created", name);
+	this.platform.log.info("Air purifier for '%s' created", this.accessory.displayName);
 
-	this.dehumidifierService = new this.hap.Service.HumidifierDehumidifier(DEHUMIDIFIER_NAME);
+    this.dehumidifierService = this.accessory.getService(PKOM_DEHUMIDIFIER_UUID) || this.accessory.addService(this.platform.api.hap.Service.HumidifierDehumidifier, DEHUMIDIFIER_NAME, PKOM_DEHUMIDIFIER_UUID);
     this.dehumidifierService.addLinkedService(this.fanService);
-	this.log.info("Dehumidifier for '%s' created", name);
+	this.platform.log.info("Dehumidifier for '%s' created", this.accessory.displayName);
 
-    this.conditionerService = new this.hap.Service.HeaterCooler(AIR_CONDITIONER_NAME);
+    this.conditionerService = this.accessory.getService(PKOM_AIR_CONDITIONER_UUID) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, AIR_CONDITIONER_NAME, PKOM_AIR_CONDITIONER_UUID);
     this.conditionerService.subtype = AIR_CONDITIONER_NAME;
     this.conditionerService.addLinkedService(this.fanService);
-    this.log.info("Air conditioner for '%s' created", name);
+    this.platform.log.info("Air conditioner for '%s' created", this.accessory.displayName);
 
-	this.heaterService = new this.hap.Service.HeaterCooler(BOILER_NAME);
+    this.heaterService = this.accessory.getService(PKOM_BOILER_UUID) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, BOILER_NAME, PKOM_BOILER_UUID);
 	this.heaterService.subtype = BOILER_NAME;
-	this.log.info("Water heater for '%s' created", name);
+	this.platform.log.info("Water heater for '%s' created", this.accessory.displayName);
 	
 	// Holidays mode is currently unused (replaced with Fan off state)
-	this.holidaysModeService = new this.hap.Service.Switch(ECO_MODE_NAME);
+    this.holidaysModeService = this.accessory.getService(PKOM_HOLIDAY_MODE_UUID) || this.accessory.addService(this.platform.api.hap.Service.Switch, HOLIDAY_MODE_NAME, PKOM_HOLIDAY_MODE_UUID);
 	this.holidaysModeService.addLinkedService(this.fanService);
-    this.log.info("Holidays mode switch for '%s' created", name);
-    
-   	this.session = new ModbusSession(this.log, this.readOnly, this.simulate, this.modbusDebugLevel);
+    this.platform.log.info("Holidays mode switch for '%s' created", this.accessory.displayName);
+
+ 	// Setup services asynchronously after modbus read
+  	this.session = new ModbusSession(this.platform.log, this.readOnly, this.simulate, this.modbusDebugLevel);
 	this.initAccessories();
   }
 
-  async initAccessories() {
-	
-	this.log.info("Initial Modbus status loading…");
+  async initAccessories() {	
+	this.platform.log.info("Initial Modbus status loading…");
 
 	await this.loadModbusStatus();
-	
+    
 	let sensors = (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor ? "humidity & dioxide" : (this.pkomHasDioxideSensor ? "dioxide" : (this.pkomHasHumiditySensor ? "humidity" : "none")));
 	let options = (this.pkomHasWaterResistance && this.pkomHasAirResistance ? "water resist. & duct battery" : (this.pkomHasWaterResistance ? "water resist." : (this.pkomHasAirResistance ? "duct bat" : "none")));
-	this.log.info("Available PKOM model: %s", (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT));
-	this.log.info("Available PKOM sensors: %s", sensors);
-	this.log.info("Available PKOM options: %s", options);
-	this.log.info("Initial Modbus status load done");
+	this.platform.log.info("Available PKOM model: %s", (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT));
+	this.platform.log.info("Available PKOM sensors: %s", sensors);
+	this.platform.log.info("Available PKOM options: %s", options);
+	this.platform.log.info("Initial Modbus status load done");
 	
-	this.log.info("Accessories characteristics initializing…");
+	this.platform.log.info("Accessories characteristics initializing…");
 	this.willChangeModbusStatus();
 	
-	this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
-		.updateCharacteristic(this.hap.Characteristic.SerialNumber, this.pkomSerialNumber)
-		.updateCharacteristic(this.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
-	this.informationService.getCharacteristic(this.hap.Characteristic.Identify)
+	this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
+		.updateCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, this.pkomSerialNumber)
+		.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
+	this.informationService.getCharacteristic(this.platform.api.hap.Characteristic.Identify)
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-		this.log.info("Identifying device #" + this.pkomSerialNumber);
+		this.platform.log.info("Identifying device #" + this.pkomSerialNumber);
 		callback();
 	  });
 
-	this.fanService.getCharacteristic(this.hap.Characteristic.On)
+	this.fanService.getCharacteristic(this.platform.api.hap.Characteristic.On)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Mechanical ventilation is " + (this.fanSwitchedOn? "on" : "off"));
+		this.platform.log.debug("Mechanical ventilation is " + (this.fanSwitchedOn? "on" : "off"));
 		callback(undefined, this.fanSwitchedOn);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
@@ -554,287 +246,286 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			this.fanSwitchedOn = fanSwitchedOn;
 			this.fanActivationChanged();
 	
-			this.log.info("Mechanical ventilation state set to " + (fanSwitchedOn? "on" : "off"));
+			this.platform.log.info("Mechanical ventilation state set to " + (fanSwitchedOn? "on" : "off"));
 		}
 		callback();
 	  });
-	this.fanService.getCharacteristic(this.hap.Characteristic.RotationSpeed)
+	this.fanService.getCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
+		this.platform.log.debug("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
 		callback(undefined, this.fanRotationSpeed);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.fanRotationSpeed = value as number;
 		this.fanSpeedChanged();
 	
-		this.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
+		this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
 		callback();
 	  });
 
-	this.filterService.getCharacteristic(this.hap.Characteristic.FilterChangeIndication)
+	this.filterService.getCharacteristic(this.platform.api.hap.Characteristic.FilterChangeIndication)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Filter change alert is " + (this.filterChangeAlert? "on" : "off"));
-		callback(undefined, (this.filterChangeAlert? this.hap.Characteristic.FilterChangeIndication.CHANGE_FILTER : this.hap.Characteristic.FilterChangeIndication.FILTER_OK));
+		this.platform.log.debug("Filter change alert is " + (this.filterChangeAlert? "on" : "off"));
+		callback(undefined, (this.filterChangeAlert? this.platform.api.hap.Characteristic.FilterChangeIndication.CHANGE_FILTER : this.platform.api.hap.Characteristic.FilterChangeIndication.FILTER_OK));
 	  });
-	this.filterService.getCharacteristic(this.hap.Characteristic.FilterLifeLevel)
+	this.filterService.getCharacteristic(this.platform.api.hap.Characteristic.FilterLifeLevel)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Filter life level is %d%%", this.filterLifeLevel);
+		this.platform.log.debug("Filter life level is %d%%", this.filterLifeLevel);
 		callback(undefined, this.filterLifeLevel);
 	  });
-	this.filterService.getCharacteristic(this.hap.Characteristic.ResetFilterIndication)
+	this.filterService.getCharacteristic(this.platform.api.hap.Characteristic.ResetFilterIndication)
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-		this.log.info("Filter alert reseted");
+		this.platform.log.info("Filter alert reseted");
 		callback();
 	  });
 
-	this.sensorService.getCharacteristic(this.hap.Characteristic.AirQuality)
+	this.sensorService.getCharacteristic(this.platform.api.hap.Characteristic.AirQuality)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air quality sensor air quality is " + this.purifierAirQuality);
+		this.platform.log.debug("Air quality sensor air quality is " + this.purifierAirQuality);
 		callback(undefined, this.purifierAirQuality);
 	  });
-	this.sensorService.getCharacteristic(this.hap.Characteristic.CarbonDioxideLevel)
+	this.sensorService.getCharacteristic(this.platform.api.hap.Characteristic.CarbonDioxideLevel)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air quality sensor dioxide level is %d ppm", this.purifierDioxideLevel.toFixed(1));
+		this.platform.log.debug("Air quality sensor dioxide level is %d ppm", this.purifierDioxideLevel.toFixed(1));
 		callback(undefined, this.purifierDioxideLevel);
 	  });
 
-	this.purifierService.getCharacteristic(this.hap.Characteristic.Active)
+	this.purifierService.getCharacteristic(this.platform.api.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air purifier is " + (this.purifierActive? "active" : "inactive"));
+		this.platform.log.debug("Air purifier is " + (this.purifierActive? "active" : "inactive"));
 		callback(undefined, this.purifierActive);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.purifierActive = value as boolean;
 		this.purifierActivationChanged();
 
-		this.log.info("Air purifier set to " + (this.purifierActive? "active" : "inactive"));
+		this.platform.log.info("Air purifier set to " + (this.purifierActive? "active" : "inactive"));
 		callback();
 	  });
-	this.purifierService.getCharacteristic(this.hap.Characteristic.CurrentAirPurifierState)
+	this.purifierService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentAirPurifierState)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Current air purifier state is " + this.purifierCurrentState);
+		this.platform.log.debug("Current air purifier state is " + this.purifierCurrentState);
 		callback(undefined, this.purifierCurrentState);
 	  });
-	this.purifierService.getCharacteristic(this.hap.Characteristic.TargetAirPurifierState)
+	this.purifierService.getCharacteristic(this.platform.api.hap.Characteristic.TargetAirPurifierState)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Target air purifier state is " + this.purifierTargetState);
+		this.platform.log.debug("Target air purifier state is " + this.purifierTargetState);
 		callback(undefined, this.purifierTargetState);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.purifierTargetState = value as number;
 		this.purifierTargetStateChanged();
 
-		this.log.info("Air purifier state set to " + this.purifierTargetState);
+		this.platform.log.info("Air purifier state set to " + this.purifierTargetState);
 		callback();
 	  });
 
-	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.Active)
+	this.dehumidifierService.getCharacteristic(this.platform.api.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {  		
 		this.willObserveModbusStatus();
-		this.log.debug("Dehumidifier is " + (this.dehumidifierActive? "active" : "inactive"));
+		this.platform.log.debug("Dehumidifier is " + (this.dehumidifierActive? "active" : "inactive"));
 		callback(undefined, this.dehumidifierActive);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.dehumidifierActive = value as boolean;
 		this.dehumidifierActivationChanged();
 
-		this.log.info("Dehumidifier set to " + (this.dehumidifierActive? "active" : "inactive"));
+		this.platform.log.info("Dehumidifier set to " + (this.dehumidifierActive? "active" : "inactive"));
 		callback();
 	  });
-	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.CurrentHumidifierDehumidifierState)
+	this.dehumidifierService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState)
 	  .updateValue(this.dehumidifierCurrentState)
 	  .setProps({ validValues: [0, 1, 3] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Current dehumidifier purifier state is " + this.dehumidifierCurrentState);
+		this.platform.log.debug("Current dehumidifier purifier state is " + this.dehumidifierCurrentState);
 		callback(undefined, this.dehumidifierCurrentState);
 	  });
-	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.TargetHumidifierDehumidifierState)
+	this.dehumidifierService.getCharacteristic(this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState)
 	  .updateValue(this.dehumidifierTargetState)
 	  .setProps({ validValues: [0, 2] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Target dehumidifier state is " + this.dehumidifierTargetState);
+		this.platform.log.debug("Target dehumidifier state is " + this.dehumidifierTargetState);
 		callback(undefined, this.dehumidifierTargetState);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.dehumidifierTargetState = value as number;
 		this.dehumidifierTargetStateChanged();
 
-		this.log.info("Dehumidifier state set to " + this.dehumidifierTargetState);
+		this.platform.log.info("Dehumidifier state set to " + this.dehumidifierTargetState);
 		callback();
 	  });
-	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.CurrentRelativeHumidity)
+	this.dehumidifierService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentRelativeHumidity)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
+		this.platform.log.debug("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
 		callback(undefined, this.dehumidifierCurrentHumidity);
 	  });
-	this.dehumidifierService.getCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold)
+	this.dehumidifierService.getCharacteristic(this.platform.api.hap.Characteristic.RelativeHumidityDehumidifierThreshold)
 	  .updateValue(this.dehumidifierHumidityThreshold)
-//	  .setProps({ minValue: PKOM_MIN_DEHUMID_HUMID, maxValue: PKOM_MAX_DEHUMID_HUMID, minStep: PKOM_HUMID_STEP })
       .setProps({ minValue: 0, maxValue: 100, minStep: PKOM_HUMID_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
+		this.platform.log.debug("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
 		callback(undefined, this.dehumidifierHumidityThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.dehumidifierHumidityThreshold = value as number;
 		this.dehumidifierThresholdChanged();
 	
-		this.log.info("Dehumidifier dehumidifying threshold set to %d%%", this.dehumidifierHumidityThreshold);
+		this.platform.log.info("Dehumidifier dehumidifying threshold set to %d%%", this.dehumidifierHumidityThreshold);
 		callback();
 	  });
 
-	this.conditionerService.getCharacteristic(this.hap.Characteristic.Active)
+	this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {  		
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
+		this.platform.log.debug("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
 		callback(undefined, this.conditionerActive);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerActive = value as boolean;
 		this.conditionerActivationChanged();
 
-		this.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
+		this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
 		callback();
 	  });
-	this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState)
+	this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentHeaterCoolerState)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Current air conditioner state is " + this.conditionerCurrentState);
+		this.platform.log.debug("Current air conditioner state is " + this.conditionerCurrentState);
 		callback(undefined, this.conditionerCurrentState);
 	  });
-	this.conditionerService.getCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState)
+	this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.TargetHeaterCoolerState)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Target air conditioner state is " + this.conditionerTargetState);
+		this.platform.log.debug("Target air conditioner state is " + this.conditionerTargetState);
 		callback(undefined, this.conditionerTargetState);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerTargetState = value as number;
 		this.conditionerTargetStateChanged();
 	
-		this.log.info("Air conditioner state set to " + this.conditionerTargetState);
+		this.platform.log.info("Air conditioner state set to " + this.conditionerTargetState);
 		callback();
 	  });
-	this.conditionerService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
+	this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
+		this.platform.log.debug("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
 		callback(undefined, this.conditionerCurrentTemperature);
 	  });
-	this.conditionerService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
+	this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature)
 	  .updateValue(this.conditionerHeatingThreshold)
 	  .setProps({ minValue: PKOM_MIN_HEAT_TEMP, maxValue: PKOM_MAX_HEAT_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner heating threshold is %f °C", this.conditionerHeatingThreshold);
+		this.platform.log.debug("Air conditioner heating threshold is %f °C", this.conditionerHeatingThreshold);
 		callback(undefined, this.conditionerHeatingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerHeatingThreshold = value as number;
 		this.conditionerThresholdChanged();
 	
-		this.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
+		this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
 		callback();
 	  });
-	this.conditionerService.getCharacteristic(this.hap.Characteristic.CoolingThresholdTemperature)
+	this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.CoolingThresholdTemperature)
 	  .updateValue(this.conditionerCoolingThreshold)
 	  .setProps({ minValue: PKOM_MIN_COOL_TEMP, maxValue: PKOM_MAX_COOL_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Air conditioner cooling threshold is %f °C", this.conditionerCoolingThreshold);
+		this.platform.log.debug("Air conditioner cooling threshold is %f °C", this.conditionerCoolingThreshold);
 		callback(undefined, this.conditionerCoolingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.conditionerCoolingThreshold = value as number;
 		this.conditionerThresholdChanged();
 	
-		this.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
+		this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
 		callback();
 	  });
 
-	this.heaterService.getCharacteristic(this.hap.Characteristic.Active)
+	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
-		this.log.debug("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
+		this.platform.log.debug("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
 		callback(undefined, this.waterHeaterActive);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.waterHeaterActive = value as boolean;
   		this.waterHeaterActivationChanged();
   		
-		this.log.info("Water heater set to " + (this.waterHeaterActive? "active" : "inactive"));
+		this.platform.log.info("Water heater set to " + (this.waterHeaterActive? "active" : "inactive"));
 		callback();
 	  });
-	this.heaterService.getCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState)
+	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentHeaterCoolerState)
 	  .updateValue(this.waterHeaterCurrentState)
 	  .setProps({ validValues: [0, 1, 2] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Current water heater state is " + this.waterHeaterCurrentState);
+		this.platform.log.debug("Current water heater state is " + this.waterHeaterCurrentState);
 		callback(undefined, this.waterHeaterCurrentState);
 	  });
-	this.heaterService.getCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState)
+	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.TargetHeaterCoolerState)
 	  .updateValue(this.waterHeaterTargetState)
 	  .setProps({ validValues: [1] })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Target water heater state is " + this.waterHeaterTargetState);
+		this.platform.log.debug("Target water heater state is " + this.waterHeaterTargetState);
 		callback(undefined, this.waterHeaterTargetState);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.waterHeaterTargetState = value as number;
   		this.waterHeaterTargetStateChanged();
 		
-		this.log.info("Water heater state set to " + this.waterHeaterTargetState);
+		this.platform.log.info("Water heater state set to " + this.waterHeaterTargetState);
 		callback();
 	  });
-	this.heaterService.getCharacteristic(this.hap.Characteristic.CurrentTemperature)
+	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
+		this.platform.log.debug("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
 		callback(undefined, this.waterHeaterCurrentTemperature);
 	  });
 	// Avoid generating an exception by changing first max, then current value, then min
-	this.heaterService.getCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature)
+	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature)
 	  .setProps({ maxValue:(this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP), minStep: PKOM_TEMP_STEP })
 	  .updateValue(this.waterHeaterHeatingThreshold)
 	  .setProps({ minValue: PKOM_MIN_BOILER_TEMP, minStep: PKOM_TEMP_STEP })
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-		this.log.debug("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
+		this.platform.log.debug("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
 		callback(undefined, this.waterHeaterHeatingThreshold);
 	  })
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.waterHeaterHeatingThreshold = value as number;
   		this.waterHeaterTargetStateChanged();
 		
-		this.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
+		this.platform.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
 		callback();
 	  });
 
-    this.holidaysModeService.getCharacteristic(this.hap.Characteristic.On)
+    this.holidaysModeService.getCharacteristic(this.platform.api.hap.Characteristic.On)
       .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
       	this.willObserveModbusStatus();
-        this.log.debug("Holidays mode is " + (this.holidaysModeSwitchedOn? "on" : "off"));
+        this.platform.log.debug("Holidays mode is " + (this.holidaysModeSwitchedOn? "on" : "off"));
         callback(undefined, this.holidaysModeSwitchedOn);
       })
       .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
         this.holidaysModeSwitchedOn = value as boolean;
 		this.holidaysModeChanged();
 	    
-       	this.log.info("Holidays mode set to " + (this.holidaysModeSwitchedOn? "on" : "off"));
+       	this.platform.log.info("Holidays mode set to " + (this.holidaysModeSwitchedOn? "on" : "off"));
         callback();
       });
     
@@ -842,13 +533,13 @@ export class PKOM4Accessory implements AccessoryPlugin {
     this.fanSpeedLevelChanged();
 	this.purifierActivationChanged();
     this.didChangeModbusStatus();
-    this.log.info("Accessories characteristics init done");
+    this.platform.log.info("Accessories characteristics init done");
 
     this.startPollingModbusStatus();
   }
   
   identify() {
-    this.log.info("Identifying Pichler PKOM4 device");
+    this.platform.log.info("Identifying Pichler PKOM4 device");
   }
 
   holidaysModeChanged() {
@@ -856,7 +547,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		this.willChangeModbusStatus();
 		
 	  	this.fanSwitchedOn = !this.holidaysModeSwitchedOn;
-	  	this.fanService.updateCharacteristic(this.hap.Characteristic.On, this.fanSwitchedOn);
+	  	this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
 	  	this.fanActivationChanged();
 	  	
 	  	this.fanManualMode = false;
@@ -872,25 +563,25 @@ export class PKOM4Accessory implements AccessoryPlugin {
   		this.dehumidifierPreviouslyActivated = this.dehumidifierActive;
   		if (this.dehumidifierActive) {
 			this.dehumidifierActive = false;
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.Active, this.dehumidifierActive);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.dehumidifierActive);
 			this.dehumidifierActivationChanged();
-			this.log.info("Linked deactivation: dehumidifier stored to " + (this.dehumidifierPreviouslyActivated? "active" : "inactive"));
+			this.platform.log.info("Linked deactivation: dehumidifier stored to " + (this.dehumidifierPreviouslyActivated? "active" : "inactive"));
   		}
 
   		this.conditionerPreviouslyActivated = this.conditionerActive;
   		if (this.conditionerActive) {
 			this.conditionerActive = false;
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.Active, this.conditionerActive);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.conditionerActive);
 			this.conditionerActivationChanged();
-			this.log.info("Linked deactivation: conditioner stored to " + (this.conditionerPreviouslyActivated? "active" : "inactive"));
+			this.platform.log.info("Linked deactivation: conditioner stored to " + (this.conditionerPreviouslyActivated? "active" : "inactive"));
 		}
 
   		this.purifierPreviouslyActivated = this.purifierActive;
   		if (this.purifierActive) {
 			this.purifierActive = false;
-			this.purifierService.updateCharacteristic(this.hap.Characteristic.Active, this.purifierActive);
+			this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.purifierActive);
 			this.purifierActivationChanged();
-			this.log.info("Linked deactivation: purifier stored to " + (this.purifierPreviouslyActivated? "active" : "inactive"));
+			this.platform.log.info("Linked deactivation: purifier stored to " + (this.purifierPreviouslyActivated? "active" : "inactive"));
 		}
 	  	
 	  	this.didChangeModbusStatus();
@@ -901,23 +592,23 @@ export class PKOM4Accessory implements AccessoryPlugin {
   		
   		if (this.dehumidifierActive != this.dehumidifierPreviouslyActivated) {
 			this.dehumidifierActive = this.dehumidifierPreviouslyActivated;
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.Active, this.dehumidifierActive);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.dehumidifierActive);
 			this.dehumidifierActivationChanged();
-			this.log.info("Linked deactivation: dehumidifier restored to " + (this.dehumidifierActive? "active" : "inactive"));
+			this.platform.log.info("Linked deactivation: dehumidifier restored to " + (this.dehumidifierActive? "active" : "inactive"));
   		}
 
   		if (this.conditionerActive != this.conditionerPreviouslyActivated) {
 			this.conditionerActive = this.conditionerPreviouslyActivated;
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.Active, this.conditionerActive);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.conditionerActive);
 			this.conditionerActivationChanged();
-			this.log.info("Linked deactivation: conditioner restored to " + (this.conditionerActive? "active" : "inactive"));
+			this.platform.log.info("Linked deactivation: conditioner restored to " + (this.conditionerActive? "active" : "inactive"));
   		}
 
   		if (this.purifierActive != this.purifierPreviouslyActivated) {
 			this.purifierActive = this.purifierPreviouslyActivated;
-			this.purifierService.updateCharacteristic(this.hap.Characteristic.Active, this.purifierActive);
+			this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.purifierActive);
 			this.purifierActivationChanged();
-			this.log.info("Linked deactivation: purifier restored to " + (this.purifierService? "active" : "inactive"));
+			this.platform.log.info("Linked deactivation: purifier restored to " + (this.purifierService? "active" : "inactive"));
   		}
   		
 	  	this.didChangeModbusStatus();
@@ -927,7 +618,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   fanSpeedLevelChanged() {
     this.willChangeModbusStatus();
     this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
-    this.fanService.updateCharacteristic(this.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
+    this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
     this.didChangeModbusStatus();
   }
   
@@ -963,17 +654,17 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	if (this.purifierActive && !this.fanSwitchedOn) {
   		this.fanSwitchedOn = true;
   		this.fanManualMode = false;
-  		this.fanService.updateCharacteristic(this.hap.Characteristic.On, this.fanSwitchedOn);
+  		this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
  	  	this.fanActivationChanged();
   	}
 
 	// Adjust purifier mode
     if (this.purifierActive) {
-		this.purifierCurrentState = this.hap.Characteristic.CurrentAirPurifierState.IDLE;
-		this.purifierService.updateCharacteristic(this.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
+		this.purifierCurrentState = this.platform.api.hap.Characteristic.CurrentAirPurifierState.IDLE;
+		this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
     } else {
-		this.purifierCurrentState = this.hap.Characteristic.CurrentAirPurifierState.INACTIVE;
-		this.purifierService.updateCharacteristic(this.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
+		this.purifierCurrentState = this.platform.api.hap.Characteristic.CurrentAirPurifierState.INACTIVE;
+		this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
     }
     
     this.purifierEnteredAutoMode();
@@ -994,12 +685,12 @@ export class PKOM4Accessory implements AccessoryPlugin {
   purifierTargetStateChanged() {
     this.willChangeModbusStatus();
     
-	if (this.purifierTargetState == this.hap.Characteristic.TargetAirPurifierState.MANUAL) {
-		this.purifierCurrentState = this.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
-		this.purifierService.updateCharacteristic(this.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
+	if (this.purifierTargetState == this.platform.api.hap.Characteristic.TargetAirPurifierState.MANUAL) {
+		this.purifierCurrentState = this.platform.api.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
+		this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
 
 		let timer = setTimeout(()=>{ this.purifierManualModeEllapsed(); }, MANUAL_MODE_DURATION);
-		this.log.info("Air purifier started a timer");
+		this.platform.log.info("Air purifier started a timer");
 			
 		this.purifierEnteredManualMode();
 	} else {
@@ -1015,7 +706,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
       	this.purifierManualMode = false;
       	
 		this.fanCurrentSpeedLevel = this.fanPreviousSpeedLevel;
-		this.log.info("Ventilation speed back to default level");
+		this.platform.log.info("Ventilation speed back to default level");
 		
 		this.fanSpeedLevelChanged();
 		this.didChangeModbusStatus();
@@ -1029,7 +720,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		this.purifierManualMode = true;
 		this.fanPreviousSpeedLevel = this.fanCurrentSpeedLevel;
 		this.fanCurrentSpeedLevel = PKOM_PURIFIER_LEVEL - 1;
-		this.log.info("Ventilation speed increased to level %d", PKOM_PURIFIER_LEVEL);
+		this.platform.log.info("Ventilation speed increased to level %d", PKOM_PURIFIER_LEVEL);
 	
 		this.fanSpeedLevelChanged();
 		this.didChangeModbusStatus();
@@ -1041,12 +732,12 @@ export class PKOM4Accessory implements AccessoryPlugin {
   		this.willChangeModbusStatus();
   		
       	this.purifierManualMode = false;
-		this.purifierTargetState = this.hap.Characteristic.TargetAirPurifierState.AUTO;
-		this.purifierService.updateCharacteristic(this.hap.Characteristic.TargetAirPurifierState, this.purifierTargetState);
-		this.log.info("Air purifier timer elapsed, state is back to " + this.purifierTargetState);
+		this.purifierTargetState = this.platform.api.hap.Characteristic.TargetAirPurifierState.AUTO;
+		this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.TargetAirPurifierState, this.purifierTargetState);
+		this.platform.log.info("Air purifier timer elapsed, state is back to " + this.purifierTargetState);
 
 		this.fanCurrentSpeedLevel = this.fanPreviousSpeedLevel;
-		this.log.info("Ventilation speed back to default level");
+		this.platform.log.info("Ventilation speed back to default level");
 	
 		this.fanSpeedLevelChanged();
 		this.didChangeModbusStatus();
@@ -1060,7 +751,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	if (this.dehumidifierActive && !this.fanSwitchedOn) {
   		this.fanSwitchedOn = true;
   		this.fanManualMode = false;
-  		this.fanService.updateCharacteristic(this.hap.Characteristic.On, this.fanSwitchedOn);
+  		this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
  	  	this.fanActivationChanged();
   	}
 	
@@ -1070,9 +761,9 @@ export class PKOM4Accessory implements AccessoryPlugin {
   dehumidifierTargetStateChanged() {
     this.willChangeModbusStatus();
     
-	if (this.dehumidifierTargetState == this.hap.Characteristic.TargetHumidifierDehumidifierState.DEHUMIDIFIER) {
+	if (this.dehumidifierTargetState == this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.DEHUMIDIFIER) {
 		let timer = setTimeout(()=>{ this.dehumidifierManualModeEllapsed(); }, MANUAL_MODE_DURATION);
-		this.log.info("Dehumidifier started a timer");
+		this.platform.log.info("Dehumidifier started a timer");
 		
 		this.dehumidifierEnteredManualMode();
 	} else {
@@ -1086,10 +777,10 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.willChangeModbusStatus();
 	if (this.dehumidifierHumidityThreshold < PKOM_MIN_DEHUMID_HUMID) {
 		this.dehumidifierHumidityThreshold = PKOM_MIN_DEHUMID_HUMID;
-		this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
+		this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
 	} else if (this.dehumidifierHumidityThreshold > PKOM_MAX_DEHUMID_HUMID) {
 		this.dehumidifierHumidityThreshold = PKOM_MAX_DEHUMID_HUMID;
-		this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
+		this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
 	}
   	this.didChangeModbusStatus();
   }
@@ -1100,7 +791,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   		this.dehumidifierManualMode = false;
   		
   		this.fanCurrentSpeedLevel = this.fanPreviousSpeedLevel;
-		this.log.info("Ventilation speed back to default level");
+		this.platform.log.info("Ventilation speed back to default level");
 		
 		this.fanSpeedLevelChanged();
 		this.didChangeModbusStatus();
@@ -1114,7 +805,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		this.dehumidifierManualMode = true;
 		this.fanPreviousSpeedLevel = this.fanCurrentSpeedLevel;
 		this.fanCurrentSpeedLevel = PKOM_DEHUMID_LEVEL - 1;
-		this.log.info("Ventilation speed increased to level %d", PKOM_DEHUMID_LEVEL);
+		this.platform.log.info("Ventilation speed increased to level %d", PKOM_DEHUMID_LEVEL);
 	
 		this.fanSpeedLevelChanged();
 		this.didChangeModbusStatus();
@@ -1126,12 +817,12 @@ export class PKOM4Accessory implements AccessoryPlugin {
   		this.willChangeModbusStatus();
   		
   		this.dehumidifierManualMode = false;
-		this.dehumidifierTargetState = this.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
-		this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.TargetHumidifierDehumidifierState, this.dehumidifierTargetState);
-		this.log.info("Dehumidifier timer elapsed, state is back to " + this.dehumidifierTargetState);
+		this.dehumidifierTargetState = this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
+		this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState, this.dehumidifierTargetState);
+		this.platform.log.info("Dehumidifier timer elapsed, state is back to " + this.dehumidifierTargetState);
 	
 		this.fanCurrentSpeedLevel = this.fanPreviousSpeedLevel;
-		this.log.info("Ventilation speed back to default level");
+		this.platform.log.info("Ventilation speed back to default level");
 	
 		this.fanSpeedLevelChanged();
 		this.didChangeModbusStatus();
@@ -1145,7 +836,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	if (this.conditionerActive && !this.fanSwitchedOn) {
   		this.fanSwitchedOn = true;
   		this.fanManualMode = false;
-  		this.fanService.updateCharacteristic(this.hap.Characteristic.On, this.fanSwitchedOn);
+  		this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
  	  	this.fanActivationChanged();
   	}
   	
@@ -1175,7 +866,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   startPollingModbusStatus() {
 	let timer = setInterval(() => {
     	void (async () => {
-			this.log.info("Modbus recurrent checking ongoing…");
+			this.platform.log.info("Modbus recurrent checking ongoing…");
 		
 			// Load new register values
 			await this.loadModbusStatus(this.simulate);		
@@ -1186,43 +877,43 @@ export class PKOM4Accessory implements AccessoryPlugin {
 			}
 
 			// Update implied characteristics
-			this.informationService.updateCharacteristic(this.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
-				.updateCharacteristic(this.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
-			this.fanService.updateCharacteristic(this.hap.Characteristic.On, this.fanSwitchedOn);
-			this.fanService.updateCharacteristic(this.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.Active, this.conditionerActive);
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState, this.conditionerCurrentState);
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState, this.conditionerTargetState);
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.CurrentTemperature, this.conditionerCurrentTemperature);
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature, this.conditionerHeatingThreshold);
-			this.conditionerService.updateCharacteristic(this.hap.Characteristic.CoolingThresholdTemperature, this.conditionerCoolingThreshold);
-			this.purifierService.updateCharacteristic(this.hap.Characteristic.Active, this.purifierActive);
-			this.purifierService.updateCharacteristic(this.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
-			this.purifierService.updateCharacteristic(this.hap.Characteristic.TargetAirPurifierState, this.purifierTargetState);
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.Active, this.dehumidifierActive);
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.CurrentHumidifierDehumidifierState, this.dehumidifierCurrentState);
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.TargetHumidifierDehumidifierState, this.dehumidifierTargetState);
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.CurrentRelativeHumidity, this.dehumidifierCurrentHumidity);
-			this.dehumidifierService.updateCharacteristic(this.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
-			this.heaterService.updateCharacteristic(this.hap.Characteristic.Active, this.waterHeaterActive);
-			this.heaterService.updateCharacteristic(this.hap.Characteristic.CurrentHeaterCoolerState, this.waterHeaterCurrentState);
-			this.heaterService.updateCharacteristic(this.hap.Characteristic.TargetHeaterCoolerState, this.waterHeaterTargetState);
-			this.heaterService.updateCharacteristic(this.hap.Characteristic.CurrentTemperature, this.waterHeaterCurrentTemperature);
-			this.heaterService.updateCharacteristic(this.hap.Characteristic.HeatingThresholdTemperature, this.waterHeaterHeatingThreshold);
-			this.sensorService.updateCharacteristic(this.hap.Characteristic.AirQuality, this.purifierAirQuality);
-			this.sensorService.updateCharacteristic(this.hap.Characteristic.CarbonDioxideLevel, this.purifierDioxideLevel);
+			this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
+				.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
+			this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
+			this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.conditionerActive);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentHeaterCoolerState, this.conditionerCurrentState);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.TargetHeaterCoolerState, this.conditionerTargetState);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature, this.conditionerCurrentTemperature);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature, this.conditionerHeatingThreshold);
+			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.CoolingThresholdTemperature, this.conditionerCoolingThreshold);
+			this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.purifierActive);
+			this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentAirPurifierState, this.purifierCurrentState);
+			this.purifierService.updateCharacteristic(this.platform.api.hap.Characteristic.TargetAirPurifierState, this.purifierTargetState);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.dehumidifierActive);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState, this.dehumidifierCurrentState);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState, this.dehumidifierTargetState);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentRelativeHumidity, this.dehumidifierCurrentHumidity);
+			this.dehumidifierService.updateCharacteristic(this.platform.api.hap.Characteristic.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
+			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.waterHeaterActive);
+			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentHeaterCoolerState, this.waterHeaterCurrentState);
+			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.TargetHeaterCoolerState, this.waterHeaterTargetState);
+			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature, this.waterHeaterCurrentTemperature);
+			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature, this.waterHeaterHeatingThreshold);
+			this.sensorService.updateCharacteristic(this.platform.api.hap.Characteristic.AirQuality, this.purifierAirQuality);
+			this.sensorService.updateCharacteristic(this.platform.api.hap.Characteristic.CarbonDioxideLevel, this.purifierDioxideLevel);
 
-			this.log.info("Modbus recurrent checking done");
+			this.platform.log.info("Modbus recurrent checking done");
 		})();
 	}, MODBUS_POLLING_PERIOD);
-	this.log.info("Modbus recurrent checking is on");
+	this.platform.log.info("Modbus recurrent checking is on");
   }
 
   willObserveModbusStatus() {
   	// No need for sync update, we're simply accelerating refresh rate
   	// Update timestamp before async call to avoid massive parallel updates
     if ((Date.now() - this.modbusLoadTimestamp) > MODBUS_INTERACTIVE_UPDATE_PERIOD) {
-		this.log.info("Modbus interactive checking ongoing…");
+		this.platform.log.info("Modbus interactive checking ongoing…");
 		this.modbusLoadTimestamp = Date.now();
     	this.loadModbusStatus();
     }
@@ -1251,7 +942,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
 		await this.session.end();
   	}
   	
-	this.log.debug("End of async modbus %s", (keepSession ? "call" : "calls"));
+	this.platform.log.debug("End of async modbus %s", (keepSession ? "call" : "calls"));
 
   	// Readwrite register are persisted by session under simulation mode
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
@@ -1309,82 +1000,82 @@ export class PKOM4Accessory implements AccessoryPlugin {
 	this.filterChangeAlert = (this.pkomFilterDuration < PKOM_FILTER_DURATION_ALERT);
 	this.filterLifeLevel = Math.round(this.pkomFilterDuration / PKOM_FILTER_MAX_DURATION * 100.0);
 	
-	let currentConditionerStatus = this.hap.Characteristic.CurrentHeaterCoolerState.IDLE;
+	let currentConditionerStatus = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.IDLE;
 	if (this.pkomCurrentlyCooling) {
-		currentConditionerStatus = this.hap.Characteristic.CurrentHeaterCoolerState.COOLING;
+		currentConditionerStatus = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.COOLING;
 	} else if (this.pkomCurrentlyHeating) {
-		currentConditionerStatus = this.hap.Characteristic.CurrentHeaterCoolerState.HEATING;
+		currentConditionerStatus = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.HEATING;
 	}
 
 	// Adjust current status based on internal manual mode
-	let currentPurifierStatus = (this.purifierManualMode ? this.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR : this.hap.Characteristic.CurrentAirPurifierState.IDLE);
-	let currentHumidifierStatus = (this.dehumidifierManualMode ? this.hap.Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING : this.hap.Characteristic.CurrentHumidifierDehumidifierState.IDLE);
-	let currentWaterHeaterStatus = (this.pkomCurrentlyWaterHeating ? this.hap.Characteristic.CurrentHeaterCoolerState.HEATING : this.hap.Characteristic.CurrentHeaterCoolerState.IDLE);
+	let currentPurifierStatus = (this.purifierManualMode ? this.platform.api.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR : this.platform.api.hap.Characteristic.CurrentAirPurifierState.IDLE);
+	let currentHumidifierStatus = (this.dehumidifierManualMode ? this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING : this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.IDLE);
+	let currentWaterHeaterStatus = (this.pkomCurrentlyWaterHeating ? this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.HEATING : this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.IDLE);
 	
 	// Adjust current status based on PKOM automatic behaviour
 	if (this.fanCurrentSpeedLevel >= PKOM_DEHUMID_LEVEL && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold) {
-		currentPurifierStatus = this.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
+		currentPurifierStatus = this.platform.api.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
 	} else if (this.fanCurrentSpeedLevel >= PKOM_PURIFIER_LEVEL && this.purifierDioxideLevel > this.purifierDioxideThreshold) {
-		currentHumidifierStatus = this.hap.Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING;
+		currentHumidifierStatus = this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING;
 	} 
 
   	switch (this.pkomMode) {
   		case PKOM_MODE_OFF:
 	  		this.fanSwitchedOn = false;
 	  		this.conditionerActive = false;
-	  		this.conditionerCurrentState = this.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
-			this.conditionerTargetState = this.hap.Characteristic.TargetHeaterCoolerState.AUTO;
-			this.waterHeaterCurrentState = this.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
-  			this.waterHeaterTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+	  		this.conditionerCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
+			this.waterHeaterCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+  			this.waterHeaterTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 	  		break;
 	  		
   		case PKOM_MODE_SUMMER:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = coolEnabled;
 	  		this.conditionerCurrentState = currentConditionerStatus;
-			this.conditionerTargetState = this.hap.Characteristic.TargetHeaterCoolerState.COOL;
+			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.COOL;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
-  			this.waterHeaterTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+  			this.waterHeaterTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 	  		break;
 	  		
   		case PKOM_MODE_WINTER:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = true;
 	  		this.conditionerCurrentState = currentConditionerStatus;
-			this.conditionerTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
-  			this.waterHeaterTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+  			this.waterHeaterTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 	  		break;
 	  		
   		case PKOM_MODE_AUTO:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = true;
 	  		this.conditionerCurrentState = currentConditionerStatus;
-			this.conditionerTargetState = this.hap.Characteristic.TargetHeaterCoolerState.AUTO;
+			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
-  			this.waterHeaterTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+  			this.waterHeaterTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 	  		break;
 	  		
   		case PKOM_MODE_HOLIDAYS:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = false;
-	  		this.conditionerCurrentState = this.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
-			this.conditionerTargetState = this.hap.Characteristic.TargetHeaterCoolerState.AUTO;
-			this.waterHeaterCurrentState = this.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
-  			this.waterHeaterTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+	  		this.conditionerCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
+			this.waterHeaterCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+  			this.waterHeaterTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 	  		break;
 	  		
   		case PKOM_MODE_BOILER:
 	  		this.fanSwitchedOn = false;
 	  		this.conditionerActive = false;
-	  		this.conditionerCurrentState = this.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
-			this.conditionerTargetState = this.hap.Characteristic.TargetHeaterCoolerState.AUTO;
+	  		this.conditionerCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
-  			this.waterHeaterTargetState = this.hap.Characteristic.TargetHeaterCoolerState.HEAT;
+  			this.waterHeaterTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 	  		break;
 	  		
 	  	default:
-	  		this.log.info("Unknown device mode - behaviour might be erratic");
+	  		this.platform.log.info("Unknown device mode - behaviour might be erratic");
 	  		break;
   	}
   	
@@ -1392,11 +1083,11 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	// Note: missing sensor is expected to unpublish the service, but has the plugin do not support
   	//	dynamic service publication, disable it instead.
   	this.purifierActive = (this.fanSwitchedOn && this.pkomHasDioxideSensor && purifierActive);
-	this.purifierCurrentState = (this.purifierActive ? currentPurifierStatus : this.hap.Characteristic.CurrentAirPurifierState.INACTIVE);
-  	this.purifierTargetState = (this.purifierManualMode ? this.hap.Characteristic.TargetAirPurifierState.MANUAL : this.hap.Characteristic.TargetAirPurifierState.AUTO);
+	this.purifierCurrentState = (this.purifierActive ? currentPurifierStatus : this.platform.api.hap.Characteristic.CurrentAirPurifierState.INACTIVE);
+  	this.purifierTargetState = (this.purifierManualMode ? this.platform.api.hap.Characteristic.TargetAirPurifierState.MANUAL : this.platform.api.hap.Characteristic.TargetAirPurifierState.AUTO);
 	this.dehumidifierActive = (this.fanSwitchedOn && this.pkomHasHumiditySensor && dehumidifierActive);
-	this.dehumidifierCurrentState = (this.dehumidifierActive ? currentHumidifierStatus : this.hap.Characteristic.CurrentHumidifierDehumidifierState.INACTIVE);
-  	this.dehumidifierTargetState = this.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
+	this.dehumidifierCurrentState = (this.dehumidifierActive ? currentHumidifierStatus : this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.INACTIVE);
+  	this.dehumidifierTargetState = this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
 
 	// Fetch hardware infos
 	this.pkomHasWaterHeater = (boilerEnergy > 0);
@@ -1444,7 +1135,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	this.modbusLoadTimestamp = Date.now();
   	this.inited = true;
 	
-	this.log.info("Modbus status loaded (total duration %d ms)", Date.now() - startTime);
+	this.platform.log.info("Modbus status loaded (total duration %d ms)", Date.now() - startTime);
   }
 
   async saveModbusStatus(keepSession = false) {
@@ -1455,7 +1146,7 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	this.modbusPendingSave = true;
 	if (!keepSession) {
   		await this.session.begin();
-		this.log.debug("End of async modbus call");
+		this.platform.log.debug("End of async modbus call");
 	}
 	
 	// Save writeable registers
@@ -1491,11 +1182,11 @@ export class PKOM4Accessory implements AccessoryPlugin {
  		pkomMode = PKOM_MODE_HOLIDAYS;	// Fan only, need to specify duration
  	} else if (this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
 		pkomMode = PKOM_MODE_SUMMER;	// No conditioner, need to stop cooling as well
-	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.HEAT) {
+	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT) {
 		pkomMode = PKOM_MODE_WINTER;	// Forced heating
-	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.COOL) {
+	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.COOL) {
 		pkomMode = PKOM_MODE_SUMMER;	// Forced cooling
- 	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.hap.Characteristic.TargetHeaterCoolerState.AUTO) {
+ 	} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO) {
 		pkomMode = PKOM_MODE_AUTO;		// All is on with auto mode
  	}
 	
@@ -1519,8 +1210,8 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	await this.session.end();
   	this.modbusPendingSave = false;
   	
-	this.log.debug("End of async modbus call");
-	this.log.info("Modbus status saved (total duration %d ms)", Date.now() - startTime);
+	this.platform.log.debug("End of async modbus call");
+	this.platform.log.info("Modbus status saved (total duration %d ms)", Date.now() - startTime);
   }
   
   iterateSimulation() {
@@ -1556,65 +1247,65 @@ export class PKOM4Accessory implements AccessoryPlugin {
   	
 	this.purifierDioxideLevel = Math.min(Math.max(this.purifierDioxideLevel + dioxideIncrement, 450), 4999);
 	this.dehumidifierCurrentHumidity =  Math.min(Math.max(this.dehumidifierCurrentHumidity + humidityIncrement, 10), 89);
-	this.log.info("Simulation - air quality modulating (∆h:%d, ∆d:%d)", humidityIncrement, dioxideIncrement);
+	this.platform.log.info("Simulation - air quality modulating (∆h:%d, ∆d:%d)", humidityIncrement, dioxideIncrement);
 
 	if (this.purifierActive && this.purifierDioxideLevel > this.purifierDioxideThreshold && this.pkomUserSpeedLevel < PKOM_PURIFIER_LEVEL) {
 		this.pkomUserSpeedLevel = PKOM_PURIFIER_LEVEL;
-		this.log.info("Simulation - starting purifying speed increase");
+		this.platform.log.info("Simulation - starting purifying speed increase");
 	} else if (this.dehumidifierActive && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold && this.pkomUserSpeedLevel < PKOM_DEHUMID_LEVEL) {
 		this.pkomUserSpeedLevel = PKOM_DEHUMID_LEVEL;
-		this.log.info("Simulation - starting dehumidifying speed increase");
+		this.platform.log.info("Simulation - starting dehumidifying speed increase");
 	} else if (this.dehumidifierActive && this.dehumidifierCurrentHumidity < PKOM_MIN_HUMID_HUMID && this.pkomUserSpeedLevel > PKOM_HUMID_LEVEL) {
 		this.pkomUserSpeedLevel = PKOM_HUMID_LEVEL;
-		this.log.info("Simulation - starting humidifying speed decrease");
+		this.platform.log.info("Simulation - starting humidifying speed decrease");
 	} else if (this.pkomUserSpeedLevel == PKOM_PURIFIER_LEVEL && !this.fanManualMode && !this.dehumidifierManualMode && !this.purifierManualMode
 			&& (!this.purifierActive || this.purifierDioxideLevel <= (this.purifierDioxideThreshold - PKOM_PURIFIER_HYSTERESIS))) {
 		this.pkomUserSpeedLevel = PKOM_SPEED_LEVEL_NORMAL;
-		this.log.info("Simulation - back to normal speed");
+		this.platform.log.info("Simulation - back to normal speed");
 	} else if (this.pkomUserSpeedLevel == PKOM_DEHUMID_LEVEL && !this.fanManualMode && !this.dehumidifierManualMode && !this.purifierManualMode
 			&& (!this.dehumidifierActive || this.dehumidifierCurrentHumidity <= (this.dehumidifierHumidityThreshold - PKOM_DEHUMID_HYSTERESIS))
 			&& (!this.dehumidifierActive || this.dehumidifierCurrentHumidity >= (PKOM_MIN_HUMID_HUMID + PKOM_DEHUMID_HYSTERESIS))) {
 		this.pkomUserSpeedLevel = PKOM_SPEED_LEVEL_NORMAL;
-		this.log.info("Simulation - back to normal speed");
+		this.platform.log.info("Simulation - back to normal speed");
 	} else {
-		this.log.debug("Simulation - humid:%d of %d%%, diox:%d of %d ppm, fan:%s, dehumid:%s, purif:%s", this.dehumidifierCurrentHumidity.toFixed(2), this.dehumidifierHumidityThreshold, this.purifierDioxideLevel, this.purifierDioxideThreshold, (this.fanManualMode ? "manual" : "auto"), (this.dehumidifierManualMode ? "manual" : "auto"), (this.purifierManualMode ? "manual" : "auto"));
+		this.platform.log.debug("Simulation - humid:%d of %d%%, diox:%d of %d ppm, fan:%s, dehumid:%s, purif:%s", this.dehumidifierCurrentHumidity.toFixed(2), this.dehumidifierHumidityThreshold, this.purifierDioxideLevel, this.purifierDioxideThreshold, (this.fanManualMode ? "manual" : "auto"), (this.dehumidifierManualMode ? "manual" : "auto"), (this.purifierManualMode ? "manual" : "auto"));
 	}
 
-    this.pkomCurrentlyWaterHeating = (this.waterHeaterCurrentState == this.hap.Characteristic.CurrentHeaterCoolerState.HEATING);
+    this.pkomCurrentlyWaterHeating = (this.waterHeaterCurrentState == this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.HEATING);
 	if (this.pkomCurrentlyWaterHeating) {
 		this.waterHeaterCurrentTemperature = this.waterHeaterCurrentTemperature + 0.5;
 		if (this.waterHeaterCurrentTemperature >= this.waterHeaterHeatingThreshold) {
 			this.pkomCurrentlyWaterHeating = false;
-			this.log.info("Simulation - stoping water heating");
+			this.platform.log.info("Simulation - stoping water heating");
 		} else {
-			this.log.debug("Simulation - water:%d of %d °C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+			this.platform.log.debug("Simulation - water:%d of %d °C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 		}
 	} else {
 		this.waterHeaterCurrentTemperature = this.waterHeaterCurrentTemperature - 0.1;
 		if (this.waterHeaterCurrentTemperature <= PKOM_MIN_BOILER_TEMP) {
 			this.pkomCurrentlyWaterHeating = true;
-			this.log.info("Simulation - starting water heating");
+			this.platform.log.info("Simulation - starting water heating");
 		} else {
-			this.log.debug("Simulation - water:%d of %d °C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+			this.platform.log.debug("Simulation - water:%d of %d °C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 		}
 	}
 	
 	if (!this.pkomCurrentlyHeating && this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = true;
-		this.log.info("Simulation - starting air heating");
+		this.platform.log.info("Simulation - starting air heating");
 	} else if (!this.pkomCurrentlyCooling && this.conditionerCurrentTemperature > (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = true;
 		this.pkomCurrentlyHeating = false;
-		this.log.info("Simulation - starting air cooling");
+		this.platform.log.info("Simulation - starting air cooling");
 	} else if (this.pkomCurrentlyHeating && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold + PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = false;
-		this.log.info("Simulation - stoping air heating");
+		this.platform.log.info("Simulation - stoping air heating");
 	} else if (this.pkomCurrentlyCooling && this.conditionerCurrentTemperature <= (this.conditionerCoolingThreshold - PKOM_HEAT_HYSTERESIS) && this.conditionerCurrentTemperature >= (this.conditionerHeatingThreshold - PKOM_HEAT_HYSTERESIS)) {
 		this.pkomCurrentlyCooling = false;
 		this.pkomCurrentlyHeating = false;
-		this.log.info("Simulation - stoping air cooling");
+		this.platform.log.info("Simulation - stoping air cooling");
 	}
 
 	this.fanCurrentSpeedLevel = this.pkomUserSpeedLevel - 1;
