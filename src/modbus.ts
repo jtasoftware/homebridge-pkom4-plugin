@@ -1,5 +1,4 @@
 import { Logging } from "homebridge";
-import { FIRMWARE_VERSION, SERIAL_NUMBER } from "./settings";
 
 export const MODBUS_ADDR_MODE = 0;					// ENUM, RW
 export const MODBUS_ADDR_COOLING = 37;				// INT, RO (W)
@@ -50,6 +49,9 @@ const PKOM_DEMO_FILTER_DURATION = 192.0;	// 8 days (hours)
 const PKOM_DEMO_BOILER_ENERGY = 1;
 const PKOM_DEMO_SENSORS = 3;
 const PKOM_DEMO_OPTIONS = 4;
+
+const PKOM4_DEMO_SERIAL_NUMBER = "F220100001";
+const PKOM4_DEMO_FIRMWARE_VERSION = "1.0";
 
 const scriptsFolder = (__dirname + "/../scripts/");
 const pythonPath = (__dirname + "/../bin/python3");
@@ -149,8 +151,8 @@ export class ModbusSession {
   }
   
   initToDefaults(demoMode: boolean) {
-  	this.registersValue[MODBUS_ADDR_FIRMWARE_VERSION] = (demoMode ? FIRMWARE_VERSION : "");
-  	this.registersValue[MODBUS_ADDR_SERIAL_NUMBER] = (demoMode ? SERIAL_NUMBER : "");
+  	this.registersValue[MODBUS_ADDR_FIRMWARE_VERSION] = (demoMode ? PKOM4_DEMO_FIRMWARE_VERSION : "");
+  	this.registersValue[MODBUS_ADDR_SERIAL_NUMBER] = (demoMode ? PKOM4_DEMO_SERIAL_NUMBER : "");
   	this.registersValue[MODBUS_ADDR_COOLING] = false;
   	this.registersValue[MODBUS_ADDR_HEATING] = false;
     this.registersValue[MODBUS_ADDR_ECO_TIME] = 0;

@@ -1,13 +1,14 @@
 import { API, HAP, Logging, PlatformConfig, DynamicPlatformPlugin, PlatformAccessory } from "homebridge";
-import { PLATFORM_NAME, PLUGIN_NAME, PKOM4_ACCESSORY_NAME, PKOM4_ACCESSORY_UUID } from "./settings";
-import { PKOM4Accessory } from "./pkom4-accessory";
+import { PLATFORM_NAME, PLUGIN_NAME } from "./settings";
+import { PKOM4Accessory, PKOM_ACCESSORY_NAME, PKOM_ACCESSORY_UUID } from "./pkom4-accessory";
 
 export class PichlerPlatform implements DynamicPlatformPlugin {
 
   public readonly api: API;
   public readonly log: Logging;
   public readonly config: PlatformConfig;
-  private accessory?: PlatformAccessory;
+  private cachedAccessory?: PlatformAccessory;
+  private pkomAccessory?: PKOM4Accessory;
   
   constructor(log: Logging, config: PlatformConfig, api: API) {
     this.log = log;
@@ -32,24 +33,23 @@ export class PichlerPlatform implements DynamicPlatformPlugin {
   
   configureAccessory(accessory: PlatformAccessory) {
     this.log.info("Loading accessory from cache:", accessory.displayName);
-    this.accessory = accessory;
+    this.cachedAccessory = accessory;
   }
   
-  discoverDevices() {	
-	if (this.accessory) {
-	  this.log.info('Restoring existing accessory from cache:', this.accessory.displayName);
+  discoverDevices() {
+    // As there's only one accessory, we don't care about device search
+	if (this.cachedAccessory) {
+	  this.log.info('Restoring existing accessory from cache:', this.cachedAccessory.displayName);
 	
-	  // If you need to update the accessory.context this.api.updatePlatformAccessories([existingAccessory])
-	  new PKOM4Accessory(this, this.accessory);
+	  this.pkomAccessory = new PKOM4Accessory(this, this.cachedAccessory);
+	  this.api.updatePlatformAccessories([this.cachedAccessory]);
+	  
 	} else {
-	  this.log.info('Adding new accessory:', PKOM4_ACCESSORY_NAME);
+	  this.log.info('Adding new accessory:', PKOM_ACCESSORY_NAME);
 	  
-	  // As there's only one accessory we don't care about unique ID generation
-	  const uuid = this.api.hap.uuid.generate(PKOM4_ACCESSORY_UUID);
-	  const accessory = new this.api.platformAccessory(PKOM4_ACCESSORY_NAME, uuid);	  
-	  new PKOM4Accessory(this, accessory);
-	  
-	  this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+	  this.cachedAccessory = new this.api.platformAccessory(PKOM_ACCESSORY_NAME, PKOM_ACCESSORY_UUID);
+	  this.pkomAccessory = new PKOM4Accessory(this, this.cachedAccessory);
+	  this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [this.cachedAccessory]);
 	}
   }
 }

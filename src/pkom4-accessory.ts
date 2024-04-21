@@ -1,6 +1,5 @@
 import { CharacteristicValue, CharacteristicEventTypes, CharacteristicGetCallback, CharacteristicSetCallback, HAP, Logging, Service, PlatformConfig, PlatformAccessory } from "homebridge";
-import { SERIAL_NUMBER, FIRMWARE_VERSION, MANUFACTURER_NAME, MODEL_NAME_FULL, MODEL_NAME_LIGHT, APP_MATCHING_ID, PLUGIN_VERSION, BOILER_NAME, HOLIDAY_MODE_NAME } from "./settings";
-import { CMV_NAME, FILTER_NAME, AIR_QUALITY_NAME, AIR_CONDITIONER_NAME, PURIFIER_NAME, DEHUMIDIFIER_NAME } from "./settings";
+import { MANUFACTURER_NAME, APP_MATCHING_ID, PLUGIN_VERSION } from "./settings";
 import { ModbusSession, MODBUS_ADDR_MODE, MODBUS_ADDR_COOLING, MODBUS_ADDR_USER_SPEED_LEVEL, MODBUS_ADDR_AUTO_SPEED_LEVEL, MODBUS_ADDR_ACTUAL_SPEED_LEVEL, MODBUS_ADDR_HEATING } from "./modbus";
 import { MODBUS_ADDR_ECO_TIME, MODBUS_ADDR_COOL_ENABLED, MODBUS_ADDR_HUMID_ENABLED, MODBUS_ADDR_DIOXIDE_ENABLED, MODBUS_ADDR_NORMAL_THRESHOLD, MODBUS_ADDR_ECO_THRESHOLD } from "./modbus";
 import { MODBUS_ADDR_HEAT_THRESHOLD, MODBUS_ADDR_COOL_THRESHOLD, MODBUS_ADDR_MAX_HUMID_THRESHOLD, MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD, MODBUS_ADDR_MIN_BOILER_THRESHOLD } from "./modbus";
@@ -13,19 +12,45 @@ const MODBUS_POLLING_PERIOD = 60000;
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;
 const FAN_SPEED_TOLERANCE = 2;
 
+export const PKOM_ACCESSORY_NAME = "PKOM 4";
+export const PKOM_ACCESSORY_UUID = "2FE3C6CF-FA12-43C4-9E5B-9A0CED436307";
+
 const PKOM_AIR_QUALITY_SCALE = [ 0.0, 0.0, 400.0, 1000.0, 1500.0, 2000.0 ];
 const PKOM_AIR_ROTATION_SCALE = [ 25.0, 50.0, 75.0, 90.0 ];
 
-const PKOM_INFO_UUID = "FFFFFFFF-0000-0000-0000-000000000001";
-const PKOM_CMV_UUID = "FFFFFFFF-0000-0000-0000-000000000002";
-const PKOM_IN_FILTER_UUID = "FFFFFFFF-0000-0000-0000-000000000003";
-const PKOM_OUT_FILTER_UUID = "FFFFFFFF-0000-0000-0000-000000000004";
-const PKOM_AIR_QUALITY_UUID = "FFFFFFFF-0000-0000-0000-000000000005";
-const PKOM_AIR_CONDITIONER_UUID = "FFFFFFFF-0000-0000-0000-000000000006";
-const PKOM_PURIFIER_UUID = "FFFFFFFF-0000-0000-0000-000000000007";
-const PKOM_DEHUMIDIFIER_UUID = "FFFFFFFF-0000-0000-0000-000000000008";
-const PKOM_BOILER_UUID = "FFFFFFFF-0000-0000-0000-000000000009";
-const PKOM_HOLIDAY_MODE_UUID = "FFFFFFFF-0000-0000-0000-00000000000A";
+const PKOM_MODEL_NAME_FULL = "PKOM4 Classic";
+const PKOM_MODEL_NAME_LIGHT = "PKOM4 Trend";
+
+const PKOM_FAN_NAME = "CMV";
+const PKOM_FILTER_NAME = "Air Filter Maintenance";
+const PKOM_AIR_QUALITY_NAME = "Air Quality Sensor";
+const PKOM_AIR_CONDITIONER_NAME = "Air Conditioner";
+const PKOM_PURIFIER_NAME = "Air Purifier";
+const PKOM_DEHUMIDIFIER_NAME = "Dehumidifier";
+const PKOM_BOILER_NAME = "Water Heater";
+const PKOM_HOLIDAY_MODE_NAME = "Holidays Mode";
+
+const PKOM_INFO_UUID = "000000FF-0000-2000-8000-000000000001";
+const PKOM_FAN_UUID = "000000FF-0000-2000-8000-000000000002";
+const PKOM_IN_FILTER_UUID = "000000FF-0000-2000-8000-000000000003";
+const PKOM_OUT_FILTER_UUID = "000000FF-0000-2000-8000-000000000004";
+const PKOM_AIR_QUALITY_UUID = "000000FF-0000-2000-8000-000000000005";
+const PKOM_AIR_CONDITIONER_UUID = "000000FF-0000-2000-8000-000000000006";
+const PKOM_PURIFIER_UUID = "000000FF-0000-2000-8000-000000000007";
+const PKOM_DEHUMIDIFIER_UUID = "000000FF-0000-2000-8000-000000000008";
+const PKOM_BOILER_UUID = "000000FF-0000-2000-8000-000000000009";
+const PKOM_HOLIDAY_MODE_UUID = "000000FF-0000-2000-8000-00000000000A";
+
+const PKOM_INFO_TYPE = "com.pichler.pkom.infos";
+const PKOM_FAN_TYPE = "com.pichler.pkom.fan";
+const PKOM_IN_FILTER_TYPE = "com.pichler.pkom.filter.in";
+const PKOM_OUT_FILTER_TYPE = "com.pichler.pkom.filter.out";
+const PKOM_AIR_QUALITY_TYPE = "com.pichler.pkom.air";
+const PKOM_AIR_CONDITIONER_TYPE = "com.pichler.pkom.conditioner";
+const PKOM_PURIFIER_TYPE = "com.pichler.pkom.purifier";
+const PKOM_DEHUMIDIFIER_TYPE = "com.pichler.pkom.dehumidifier";
+const PKOM_BOILER_TYPE = "com.pichler.pkom.boiler";
+const PKOM_HOLIDAY_MODE_TYPE = "com.pichler.pkom.switch.holidays";
 
 const PKOM_MODE_UNSUPPORTED = -1;
 const PKOM_MODE_OFF = 0;
@@ -148,7 +173,7 @@ export class PKOM4Accessory {
   private dehumidifierService: Service;
   private conditionerService: Service;
   private heaterService: Service;
-  private holidaysModeService: Service;
+//  private holidaysModeService: Service;
 
   constructor(platform: PichlerPlatform, accessory: PlatformAccessory) {
 	this.accessory = accessory;
@@ -161,49 +186,46 @@ export class PKOM4Accessory {
 	this.platform = platform;
 	this.platform.log.info("Platform config: " + (this.simulate && this.readOnly ? "simulate, read-only" : (this.simulate ? "simulate" : (this.readOnly ? "read-only" : "none"))));
 	
-	this.informationService = this.accessory.getService(PKOM_INFO_UUID) || this.accessory.addService(this.platform.api.hap.Service.AccessoryInformation, this.accessory.displayName, PKOM_INFO_UUID);
+	this.informationService = this.accessory.getService(this.platform.api.hap.Service.AccessoryInformation) || this.accessory.addService(this.platform.api.hap.Service.AccessoryInformation, this.accessory.displayName, PKOM_INFO_TYPE);
     this.informationService.setCharacteristic(this.platform.api.hap.Characteristic.Manufacturer, MANUFACTURER_NAME)
       .setCharacteristic(this.platform.api.hap.Characteristic.Model, "PKOM4")
       .setCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, "--------")
-//      .setCharacteristic(this.platform.api.hap.Characteristic.AppMatchingIdentifier, APP_MATCHING_ID)
-      .setCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, FIRMWARE_VERSION)
+      .setCharacteristic(this.platform.api.hap.Characteristic.AppMatchingIdentifier, APP_MATCHING_ID)
       .setCharacteristic(this.platform.api.hap.Characteristic.SoftwareRevision, PLUGIN_VERSION);
     this.platform.log.info("Hardware informations for '%s' created", this.accessory.displayName);
   	
-    this.fanService = this.accessory.getService(PKOM_CMV_UUID) || this.accessory.addService(this.platform.api.hap.Service.Fan, CMV_NAME, PKOM_CMV_UUID);
+    this.fanService = this.accessory.getService(this.platform.api.hap.Service.Fan) || this.accessory.addService(this.platform.api.hap.Service.Fan, PKOM_FAN_NAME, PKOM_FAN_TYPE);
     this.fanService.setPrimaryService(true);
     this.platform.log.info("Mechanical ventilation for '%s' created", this.accessory.displayName);
-    
-    this.filterService = this.accessory.getService(PKOM_IN_FILTER_UUID) || this.accessory.addService(this.platform.api.hap.Service.FilterMaintenance, FILTER_NAME, PKOM_IN_FILTER_UUID);
-    this.filterService.subtype = FILTER_NAME;
+
+    this.filterService = this.accessory.getService(this.platform.api.hap.Service.FilterMaintenance) || this.accessory.addService(this.platform.api.hap.Service.FilterMaintenance, PKOM_FILTER_NAME, PKOM_IN_FILTER_TYPE);
     this.platform.log.info("Filter maintenance for '%s' created", this.accessory.displayName);
 
-    this.sensorService = this.accessory.getService(PKOM_AIR_QUALITY_UUID) || this.accessory.addService(this.platform.api.hap.Service.AirQualitySensor, AIR_QUALITY_NAME, PKOM_AIR_QUALITY_UUID);
+    this.sensorService = this.accessory.getService(this.platform.api.hap.Service.AirQualitySensor) || this.accessory.addService(this.platform.api.hap.Service.AirQualitySensor, PKOM_AIR_QUALITY_NAME, PKOM_AIR_QUALITY_TYPE);
 	this.platform.log.info("Air quality sensor for '%s' created", this.accessory.displayName);
 
-    this.purifierService = this.accessory.getService(PKOM_PURIFIER_UUID) || this.accessory.addService(this.platform.api.hap.Service.AirPurifier, PURIFIER_NAME, PKOM_PURIFIER_UUID);
-    this.purifierService.addLinkedService(this.fanService);
+    this.purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier) || this.accessory.addService(this.platform.api.hap.Service.AirPurifier, PKOM_PURIFIER_NAME, PKOM_PURIFIER_TYPE);
+//     this.purifierService.addLinkedService(this.fanService);
 	this.purifierService.addLinkedService(this.sensorService);
 	this.purifierService.addLinkedService(this.filterService);
 	this.platform.log.info("Air purifier for '%s' created", this.accessory.displayName);
 
-    this.dehumidifierService = this.accessory.getService(PKOM_DEHUMIDIFIER_UUID) || this.accessory.addService(this.platform.api.hap.Service.HumidifierDehumidifier, DEHUMIDIFIER_NAME, PKOM_DEHUMIDIFIER_UUID);
+    this.dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier) || this.accessory.addService(this.platform.api.hap.Service.HumidifierDehumidifier, PKOM_DEHUMIDIFIER_NAME, PKOM_DEHUMIDIFIER_TYPE);
     this.dehumidifierService.addLinkedService(this.fanService);
 	this.platform.log.info("Dehumidifier for '%s' created", this.accessory.displayName);
-
-    this.conditionerService = this.accessory.getService(PKOM_AIR_CONDITIONER_UUID) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, AIR_CONDITIONER_NAME, PKOM_AIR_CONDITIONER_UUID);
-    this.conditionerService.subtype = AIR_CONDITIONER_NAME;
+    
+    this.conditionerService = this.accessory.getService(PKOM_AIR_CONDITIONER_NAME) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, PKOM_AIR_CONDITIONER_NAME, PKOM_AIR_CONDITIONER_TYPE);
     this.conditionerService.addLinkedService(this.fanService);
     this.platform.log.info("Air conditioner for '%s' created", this.accessory.displayName);
 
-    this.heaterService = this.accessory.getService(PKOM_BOILER_UUID) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, BOILER_NAME, PKOM_BOILER_UUID);
-	this.heaterService.subtype = BOILER_NAME;
+    this.heaterService = this.accessory.getService(PKOM_BOILER_NAME) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, PKOM_BOILER_NAME, PKOM_BOILER_TYPE);
 	this.platform.log.info("Water heater for '%s' created", this.accessory.displayName);
 	
 	// Holidays mode is currently unused (replaced with Fan off state)
-    this.holidaysModeService = this.accessory.getService(PKOM_HOLIDAY_MODE_UUID) || this.accessory.addService(this.platform.api.hap.Service.Switch, HOLIDAY_MODE_NAME, PKOM_HOLIDAY_MODE_UUID);
-	this.holidaysModeService.addLinkedService(this.fanService);
-    this.platform.log.info("Holidays mode switch for '%s' created", this.accessory.displayName);
+//     this.holidaysModeService = this.accessory.getService(this.platform.api.hap.Service.Switch) || this.accessory.addService(this.platform.api.hap.Service.Switch, PKOM_HOLIDAY_MODE_NAME, PKOM_HOLIDAY_MODE_TYPE);
+//     this.holidaysModeService = this.accessory.getService(PKOM_HOLIDAY_MODE_TYPE) || this.accessory.addService(this.platform.api.hap.Service.Switch, PKOM_HOLIDAY_MODE_NAME, PKOM_HOLIDAY_MODE_TYPE);
+// 	this.holidaysModeService.addLinkedService(this.fanService);
+//     this.platform.log.info("Holidays mode switch for '%s' created", this.accessory.displayName);
 
  	// Setup services asynchronously after modbus read
   	this.session = new ModbusSession(this.platform.log, this.readOnly, this.simulate, this.modbusDebugLevel);
@@ -217,7 +239,7 @@ export class PKOM4Accessory {
     
 	let sensors = (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor ? "humidity & dioxide" : (this.pkomHasDioxideSensor ? "dioxide" : (this.pkomHasHumiditySensor ? "humidity" : "none")));
 	let options = (this.pkomHasWaterResistance && this.pkomHasAirResistance ? "water resist. & duct battery" : (this.pkomHasWaterResistance ? "water resist." : (this.pkomHasAirResistance ? "duct bat" : "none")));
-	this.platform.log.info("Available PKOM model: %s", (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT));
+	this.platform.log.info("Available PKOM model: %s", (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT));
 	this.platform.log.info("Available PKOM sensors: %s", sensors);
 	this.platform.log.info("Available PKOM options: %s", options);
 	this.platform.log.info("Initial Modbus status load done");
@@ -225,7 +247,7 @@ export class PKOM4Accessory {
 	this.platform.log.info("Accessories characteristics initializing…");
 	this.willChangeModbusStatus();
 	
-	this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
+	this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT))
 		.updateCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, this.pkomSerialNumber)
 		.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
 	this.informationService.getCharacteristic(this.platform.api.hap.Characteristic.Identify)
@@ -497,7 +519,7 @@ export class PKOM4Accessory {
 		this.platform.log.debug("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
 		callback(undefined, this.waterHeaterCurrentTemperature);
 	  });
-	// Avoid generating an exception by changing first max, then current value, then min
+	// Avoid generating an exception by changing max first, then current value, then min
 	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature)
 	  .setProps({ maxValue:(this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP), minStep: PKOM_TEMP_STEP })
 	  .updateValue(this.waterHeaterHeatingThreshold)
@@ -515,19 +537,19 @@ export class PKOM4Accessory {
 		callback();
 	  });
 
-    this.holidaysModeService.getCharacteristic(this.platform.api.hap.Characteristic.On)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-      	this.willObserveModbusStatus();
-        this.platform.log.debug("Holidays mode is " + (this.holidaysModeSwitchedOn? "on" : "off"));
-        callback(undefined, this.holidaysModeSwitchedOn);
-      })
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.holidaysModeSwitchedOn = value as boolean;
-		this.holidaysModeChanged();
-	    
-       	this.platform.log.info("Holidays mode set to " + (this.holidaysModeSwitchedOn? "on" : "off"));
-        callback();
-      });
+//     this.holidaysModeService.getCharacteristic(this.platform.api.hap.Characteristic.On)
+//       .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+//       	this.willObserveModbusStatus();
+//         this.platform.log.debug("Holidays mode is " + (this.holidaysModeSwitchedOn? "on" : "off"));
+//         callback(undefined, this.holidaysModeSwitchedOn);
+//       })
+//       .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+//         this.holidaysModeSwitchedOn = value as boolean;
+// 		this.holidaysModeChanged();
+// 	    
+//        	this.platform.log.info("Holidays mode set to " + (this.holidaysModeSwitchedOn? "on" : "off"));
+//         callback();
+//       });
     
     // Update pre-computed characteristics    
     this.fanSpeedLevelChanged();
@@ -876,8 +898,45 @@ export class PKOM4Accessory {
 				await this.saveModbusStatus(true);
 			}
 
+			// Update available services
+			let heaterService = this.accessory.getService(PKOM_BOILER_NAME);
+			if (this.pkomHasWaterHeater && !heaterService) {
+				this.accessory.addService(this.heaterService);
+				this.platform.log.info("Air quality sensor is now available");
+			} else if (!this.pkomHasWaterHeater && heaterService) {
+				this.accessory.removeService(heaterService);
+				this.platform.log.info("Air quality sensor is no more available");
+			}
+			
+			let purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier);
+			if (this.pkomHasDioxideSensor && !purifierService) {
+				this.accessory.addService(this.purifierService);
+				this.platform.log.info("Air purifier is now available");
+			} else if (!this.pkomHasDioxideSensor && purifierService) {
+				this.accessory.removeService(purifierService);
+				this.platform.log.info("Air purifier is no more available");
+			}
+			
+			let sensorService = this.accessory.getService(this.platform.api.hap.Service.AirQualitySensor);
+			if (this.pkomHasDioxideSensor && !sensorService) {
+				this.accessory.addService(this.sensorService);
+				this.platform.log.info("Water heater is now available");
+			} else if (!this.pkomHasDioxideSensor && sensorService) {
+				this.accessory.removeService(sensorService);
+				this.platform.log.info("Water heater is no more available");
+			}
+			
+			let dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier);
+			if (this.pkomHasHumiditySensor && !dehumidifierService) {
+				this.accessory.addService(this.dehumidifierService);
+				this.platform.log.info("Dehumidifier is now available");
+			} else if (!this.pkomHasHumiditySensor && dehumidifierService) {
+				this.accessory.removeService(dehumidifierService);
+				this.platform.log.info("Dehumidifier is no more available");
+			}
+	
 			// Update implied characteristics
-			this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? MODEL_NAME_FULL : MODEL_NAME_LIGHT))
+			this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT))
 				.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
 			this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
 			this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
@@ -901,7 +960,7 @@ export class PKOM4Accessory {
 			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature, this.waterHeaterCurrentTemperature);
 			this.heaterService.updateCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature, this.waterHeaterHeatingThreshold);
 			this.sensorService.updateCharacteristic(this.platform.api.hap.Characteristic.AirQuality, this.purifierAirQuality);
-			this.sensorService.updateCharacteristic(this.platform.api.hap.Characteristic.CarbonDioxideLevel, this.purifierDioxideLevel);
+ 			this.sensorService.updateCharacteristic(this.platform.api.hap.Characteristic.CarbonDioxideLevel, this.purifierDioxideLevel);
 
 			this.platform.log.info("Modbus recurrent checking done");
 		})();
@@ -937,9 +996,16 @@ export class PKOM4Accessory {
 
  	// Fetch modbus registers (trigger an empty save cycle)	
 	let startTime = Date.now();
-	await this.session.begin();
+	let beginPromise = await this.session.begin()
+		.catch((error: Error) => {
+			this.platform.log.info("Error with nested modbus sessions %s", error.message);
+		});
+		
   	if (!keepSession) {
-		await this.session.end();
+		let endPromise = await this.session.end()
+			.catch((error: Error) => {
+				this.platform.log.info("Error with nested modbus sessions %s", error.message);
+			});
   	}
   	
 	this.platform.log.debug("End of async modbus %s", (keepSession ? "call" : "calls"));
@@ -1080,12 +1146,10 @@ export class PKOM4Accessory {
   	}
   	
   	// Purifier & dehumidifier status depends on fan mode
-  	// Note: missing sensor is expected to unpublish the service, but has the plugin do not support
-  	//	dynamic service publication, disable it instead.
-  	this.purifierActive = (this.fanSwitchedOn && this.pkomHasDioxideSensor && purifierActive);
+  	this.purifierActive = (this.fanSwitchedOn && purifierActive);
 	this.purifierCurrentState = (this.purifierActive ? currentPurifierStatus : this.platform.api.hap.Characteristic.CurrentAirPurifierState.INACTIVE);
   	this.purifierTargetState = (this.purifierManualMode ? this.platform.api.hap.Characteristic.TargetAirPurifierState.MANUAL : this.platform.api.hap.Characteristic.TargetAirPurifierState.AUTO);
-	this.dehumidifierActive = (this.fanSwitchedOn && this.pkomHasHumiditySensor && dehumidifierActive);
+	this.dehumidifierActive = (this.fanSwitchedOn && dehumidifierActive);
 	this.dehumidifierCurrentState = (this.dehumidifierActive ? currentHumidifierStatus : this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.INACTIVE);
   	this.dehumidifierTargetState = this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
 
@@ -1129,7 +1193,7 @@ export class PKOM4Accessory {
 			this.pkomHasAirResistance = true;
 			break;
 	}
-	
+
 	// Update air quality status
   	this.purifierDioxideChanged();
   	this.modbusLoadTimestamp = Date.now();
@@ -1145,7 +1209,11 @@ export class PKOM4Accessory {
 	let startTime = Date.now();
   	this.modbusPendingSave = true;
 	if (!keepSession) {
-  		await this.session.begin();
+  		let beginPromise = await this.session.begin()
+		.catch((error: Error) => {
+			this.platform.log.info("Error with nested modbus sessions %s", error.message);
+		});
+		
 		this.platform.log.debug("End of async modbus call");
 	}
 	
@@ -1207,7 +1275,11 @@ export class PKOM4Accessory {
  	}
   	
 	// Send modified registers
-  	await this.session.end();
+	let endPromise = await this.session.end()
+		.catch((error: Error) => {
+			this.platform.log.info("Error with nested modbus sessions %s", error.message);
+		});
+
   	this.modbusPendingSave = false;
   	
 	this.platform.log.debug("End of async modbus call");
@@ -1310,77 +1382,5 @@ export class PKOM4Accessory {
 
 	this.fanCurrentSpeedLevel = this.pkomUserSpeedLevel - 1;
     this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
-  }
-
-  getServices(): Service[] {
-  	if (this.pkomHasWaterHeater && this.pkomHasDioxideSensor && this.pkomHasHumiditySensor) {
-		return [
-		  this.informationService,
-		  this.fanService,
-		  this.filterService,
-		  this.sensorService,
-		  this.purifierService,
-		  this.dehumidifierService,
-		  this.conditionerService,
-		  this.heaterService
-		];
-	} else if (this.pkomHasWaterHeater && this.pkomHasDioxideSensor) {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.filterService,
-		  this.purifierService,
-		  this.conditionerService,
-		  this.heaterService
-		];
-    } else if (this.pkomHasWaterHeater && this.pkomHasHumiditySensor) {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.sensorService,
-		  this.dehumidifierService,
-		  this.conditionerService,
-		  this.heaterService
-		];
-    } else if (this.pkomHasWaterHeater) {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.conditionerService,
-		  this.heaterService
-		];
-    } else if (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor) {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.filterService,
-		  this.sensorService,
-		  this.purifierService,
-		  this.dehumidifierService,
-		  this.conditionerService
-		];
-    } else if (this.pkomHasDioxideSensor) {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.filterService,
-		  this.purifierService,
-		  this.conditionerService
-		];
-    } else if (this.pkomHasHumiditySensor) {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.sensorService,
-		  this.dehumidifierService,
-		  this.conditionerService
-		];
-    } else {
-    	return [
-		  this.informationService,
-		  this.fanService,
-		  this.conditionerService
-		];
-    }
   }
 }
