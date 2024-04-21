@@ -14,3 +14,8 @@ npm version patch
 ```
 npm publish
 ```
+
+## To download a npm archive:
+```
+npm pack homebridge-pichler-pkom4
+```
