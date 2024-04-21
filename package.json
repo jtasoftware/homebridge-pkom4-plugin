@@ -1,10 +1,11 @@
 {
+  "displayName": "homebridge-pichler-pkom4",
   "name": "homebridge-pichler-pkom4",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "description": "Homebridge plugin for PichlerLuft.at thermodynamic all-in-one PKOM4 Classic and Trend (Modbus)",
   "author": "Jerome Tarantino <contact@jtasoftware.org>",
   "license": "EUPL",
-  "main": "dist/pichler-pkom4-platform.js",
+  "main": "dist/index.js",
   "homepage": "https://github.com/jtasoftware/homebridge-pkom4-plugin#readme",
   "keywords": [
     "homebridge-plugin",
@@ -12,7 +13,7 @@
     "pkom4",
     "thermodynamic",
     "ventilation",
-    "modbus",
+    "heatpump",
     "cmv",
     "vmc"
   ],
