@@ -54,7 +54,7 @@ const PKOM4_DEMO_SERIAL_NUMBER = "F220100001";
 const PKOM4_DEMO_FIRMWARE_VERSION = "1.0";
 
 const scriptsFolder = (__dirname + "/../scripts/");
-const pythonPath = (__dirname + "/../bin/python3");
+const pythonPath = (__dirname + "/../scripts/bin/python3");
 const { spawn } = require('child_process');
 
 export class ModbusSession {
