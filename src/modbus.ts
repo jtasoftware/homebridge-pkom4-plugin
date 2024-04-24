@@ -54,8 +54,7 @@ const PKOM4_DEMO_SERIAL_NUMBER = "F220100001";
 const PKOM4_DEMO_FIRMWARE_VERSION = "1.0";
 
 const scriptsFolder = (__dirname + "/../scripts");
-const relativePythonPath = "bin/python3";
-const pythonPath = (scriptsFolder + "/" + relativePythonPath);
+const pythonRelativePath = "bin/python3";
 const shPath = "/bin/sh";
 const { spawn } = require('child_process');
 
@@ -69,6 +68,7 @@ export class ModbusSession {
   private readonly demoMode: boolean;
   private readonly debugLevel: number;
   private readonly log: Logging;
+  private pythonVirtualEnv: string;
   private installed: boolean;
   public  ongoing: boolean;
 
@@ -79,6 +79,7 @@ export class ModbusSession {
   	this.debugLevel = debugLevel;
 	this.ongoing = false;
 	this.installed = false;
+	this.pythonVirtualEnv = "";
 	
 	this.registersCache = {};
 	this.registersValue = {};
@@ -189,14 +190,19 @@ export class ModbusSession {
   async install(destination: string): Promise<any> {	
 	this.log.info("Installing modbus module in homebridge storage zone");
 
- 	destination = scriptsFolder;
+	// Empty destination means default (plugin) location 
+	if (destination != "") {
+	 	this.pythonVirtualEnv = destination;
+	} else {
+	 	this.pythonVirtualEnv = scriptsFolder;
+	}
 
 	// Use Schell command to create python virtual env & install modbus module
-	let promise = await this.callSchellScript("install.sh", destination)
+	let promise = await this.callSchellScript("install.sh", this.pythonVirtualEnv)
 		.then(() => {		
 		 	this.installed = true;
 		 	if (this.debugLevel > 1) {
-	   			this.log.debug("Modbus module installed successfully into %s", destination);
+	   			this.log.debug("Modbus module installed successfully into %s", this.pythonVirtualEnv);
      		}
 		})
 		.catch((error: Error) => {
@@ -208,7 +214,9 @@ export class ModbusSession {
 
   async begin(): Promise<any> {
   	if (this.ongoing) throw 'Session error: begin/end calls are unbalanced';
-  	this.ongoing = true;
+    if (!this.installed) throw 'Session error: modbus module is not yet ready';
+
+	this.ongoing = true;
   	
 	for (let address of this.registersAddress) {
 		this.registersModified[address] = false;
@@ -220,7 +228,7 @@ export class ModbusSession {
 	// that was not sent. It will also behave as a slave considering any concurent change
 	// that occurred. From that point, and until end() call will turn into a master
 	// for pending changes (will overwrite concurent changes).
-	let promise = await this.callPython("modbus.py", "get", this.registersValue)
+	let promise = await this.callPython(this.pythonVirtualEnv, "modbus.py", "get", this.registersValue)
 		.then((result: Record<number, any>) => {
      		this.registersValue = result;
      		if (this.debugLevel > 1) {
@@ -236,6 +244,7 @@ export class ModbusSession {
 
   async end(): Promise<any> {
     if (!this.ongoing) throw 'Session error: begin/end calls are unbalanced';
+    if (!this.installed) throw 'Session error: modbus module is not yet ready';
    
 	// Filter registers that were modified - avoid erasing concurent changes for
 	//	not conflicting registers. Won't manage real conflicts however.
@@ -256,7 +265,7 @@ export class ModbusSession {
  	this.ongoing = false;
 
 	// Use Python command to write modified registers
-	let promise = await this.callPython("modbus.py", "set", this.registersCache)
+	let promise = await this.callPython(this.pythonVirtualEnv, "modbus.py", "set", this.registersCache)
 		.catch((error: Error) => {
 			this.log.info("Error setting modbus registers %s", error.message);
 		});
@@ -267,7 +276,7 @@ export class ModbusSession {
   async callSchellScript(scriptName: string, param: string): Promise<any> {
   	return new Promise(function(successCallback, failureCallback) {
 		try {
-			const shArgs = [scriptsFolder + "/" + scriptName, param];
+			const shArgs = [(scriptsFolder + "/" + scriptName), param];
 			const shProcess = spawn(shPath, shArgs);
 			let errorMsg = "";
 	
@@ -290,10 +299,11 @@ export class ModbusSession {
   	});
   }
 
-  async callPython(scriptName: string, verb: string, param?: any): Promise<any> {
+  async callPython(virtualEnv: string, scriptName: string, verb: string, param?: any): Promise<any> {
 	return new Promise(function(successCallback, failureCallback) {
 		try {
-			const pyArgs = [scriptsFolder + "/" + scriptName, verb, JSON.stringify(param)];
+			const pyArgs = [(scriptsFolder + "/" + scriptName), verb, JSON.stringify(param)];
+			const pythonPath = (virtualEnv + "/" + pythonRelativePath);
 			const pyProcess = spawn(pythonPath, pyArgs );
 			let result = "";
 			let errorMsg = "";

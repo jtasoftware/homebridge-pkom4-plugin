@@ -28,7 +28,6 @@ const PKOM_AIR_CONDITIONER_NAME = "Air Conditioner";
 const PKOM_PURIFIER_NAME = "Air Purifier";
 const PKOM_DEHUMIDIFIER_NAME = "Dehumidifier";
 const PKOM_BOILER_NAME = "Water Heater";
-const PKOM_HOLIDAY_MODE_NAME = "Holidays Mode";
 
 const PKOM_INFO_UUID = "000000FF-0000-2000-8000-000000000001";
 const PKOM_FAN_UUID = "000000FF-0000-2000-8000-000000000002";
@@ -39,7 +38,6 @@ const PKOM_AIR_CONDITIONER_UUID = "000000FF-0000-2000-8000-000000000006";
 const PKOM_PURIFIER_UUID = "000000FF-0000-2000-8000-000000000007";
 const PKOM_DEHUMIDIFIER_UUID = "000000FF-0000-2000-8000-000000000008";
 const PKOM_BOILER_UUID = "000000FF-0000-2000-8000-000000000009";
-const PKOM_HOLIDAY_MODE_UUID = "000000FF-0000-2000-8000-00000000000A";
 
 const PKOM_INFO_TYPE = "com.pichler.pkom.infos";
 const PKOM_FAN_TYPE = "com.pichler.pkom.fan";
@@ -50,7 +48,6 @@ const PKOM_AIR_CONDITIONER_TYPE = "com.pichler.pkom.conditioner";
 const PKOM_PURIFIER_TYPE = "com.pichler.pkom.purifier";
 const PKOM_DEHUMIDIFIER_TYPE = "com.pichler.pkom.dehumidifier";
 const PKOM_BOILER_TYPE = "com.pichler.pkom.boiler";
-const PKOM_HOLIDAY_MODE_TYPE = "com.pichler.pkom.switch.holidays";
 
 const PKOM_MODE_UNSUPPORTED = -1;
 const PKOM_MODE_OFF = 0;
@@ -163,8 +160,6 @@ export class PKOM4Accessory {
   private waterHeaterCurrentTemperature = 0.0;
   private waterHeaterHeatingThreshold = PKOM_MIN_BOILER_TEMP;
 
-  private holidaysModeSwitchedOn = false;
-
   private informationService: Service;
   private fanService: Service;
   private filterService: Service;
@@ -173,7 +168,6 @@ export class PKOM4Accessory {
   private dehumidifierService: Service;
   private conditionerService: Service;
   private heaterService: Service;
-//  private holidaysModeService: Service;
 
   constructor(platform: PichlerPlatform, accessory: PlatformAccessory) {
 	this.accessory = accessory;
@@ -205,7 +199,6 @@ export class PKOM4Accessory {
 	this.platform.log.info("Air quality sensor for '%s' created", this.accessory.displayName);
 
     this.purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier) || this.accessory.addService(this.platform.api.hap.Service.AirPurifier, PKOM_PURIFIER_NAME, PKOM_PURIFIER_TYPE);
-//     this.purifierService.addLinkedService(this.fanService);
 	this.purifierService.addLinkedService(this.sensorService);
 	this.purifierService.addLinkedService(this.filterService);
 	this.platform.log.info("Air purifier for '%s' created", this.accessory.displayName);
@@ -221,15 +214,9 @@ export class PKOM4Accessory {
     this.heaterService = this.accessory.getService(PKOM_BOILER_NAME) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, PKOM_BOILER_NAME, PKOM_BOILER_TYPE);
 	this.platform.log.info("Water heater for '%s' created", this.accessory.displayName);
 	
-	// Holidays mode is currently unused (replaced with Fan off state)
-//     this.holidaysModeService = this.accessory.getService(this.platform.api.hap.Service.Switch) || this.accessory.addService(this.platform.api.hap.Service.Switch, PKOM_HOLIDAY_MODE_NAME, PKOM_HOLIDAY_MODE_TYPE);
-//     this.holidaysModeService = this.accessory.getService(PKOM_HOLIDAY_MODE_TYPE) || this.accessory.addService(this.platform.api.hap.Service.Switch, PKOM_HOLIDAY_MODE_NAME, PKOM_HOLIDAY_MODE_TYPE);
-// 	this.holidaysModeService.addLinkedService(this.fanService);
-//     this.platform.log.info("Holidays mode switch for '%s' created", this.accessory.displayName);
-
  	// Setup services asynchronously after modbus read
   	this.session = new ModbusSession(this.platform.log, this.readOnly, this.simulate, this.modbusDebugLevel);
-  	this.session.install(this.platform.api.user.storagePath());
+  	this.session.install("");
 	this.initAccessories();
   }
 
@@ -537,20 +524,6 @@ export class PKOM4Accessory {
 		this.platform.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
 		callback();
 	  });
-
-//     this.holidaysModeService.getCharacteristic(this.platform.api.hap.Characteristic.On)
-//       .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-//       	this.willObserveModbusStatus();
-//         this.platform.log.debug("Holidays mode is " + (this.holidaysModeSwitchedOn? "on" : "off"));
-//         callback(undefined, this.holidaysModeSwitchedOn);
-//       })
-//       .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-//         this.holidaysModeSwitchedOn = value as boolean;
-// 		this.holidaysModeChanged();
-// 	    
-//        	this.platform.log.info("Holidays mode set to " + (this.holidaysModeSwitchedOn? "on" : "off"));
-//         callback();
-//       });
     
     // Update pre-computed characteristics    
     this.fanSpeedLevelChanged();
@@ -563,19 +536,6 @@ export class PKOM4Accessory {
   
   identify() {
     this.platform.log.info("Identifying Pichler PKOM4 device");
-  }
-
-  holidaysModeChanged() {
-	if (this.fanSwitchedOn == this.holidaysModeSwitchedOn) {
-		this.willChangeModbusStatus();
-		
-	  	this.fanSwitchedOn = !this.holidaysModeSwitchedOn;
-	  	this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
-	  	this.fanActivationChanged();
-	  	
-	  	this.fanManualMode = false;
-   	 	this.didChangeModbusStatus();
-  	}
   }
   
   fanActivationChanged() {
@@ -999,13 +959,13 @@ export class PKOM4Accessory {
 	let startTime = Date.now();
 	let beginPromise = await this.session.begin()
 		.catch((error: Error) => {
-			this.platform.log.info("Error with nested modbus sessions %s", error.message);
+			this.platform.log.info("Modbus session is busy operation will be ignored");
 		});
 		
   	if (!keepSession) {
 		let endPromise = await this.session.end()
 			.catch((error: Error) => {
-				this.platform.log.info("Error with nested modbus sessions %s", error.message);
+				this.platform.log.info("Modbus session is busy operation will be ignored");
 			});
   	}
   	
@@ -1212,7 +1172,7 @@ export class PKOM4Accessory {
 	if (!keepSession) {
   		let beginPromise = await this.session.begin()
 		.catch((error: Error) => {
-			this.platform.log.info("Error with nested modbus sessions %s", error.message);
+			this.platform.log.info("Modbus session is busy operation will be ignored");
 		});
 		
 		this.platform.log.debug("End of async modbus call");
@@ -1239,9 +1199,7 @@ export class PKOM4Accessory {
   	let pkomUserSpeedLevel = (this.simulate || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : PKOM_SPEED_LEVEL_AUTO;
 	let pkomMode = PKOM_MODE_UNSUPPORTED;
 	
-	if (this.holidaysModeSwitchedOn) {
- 		pkomMode = PKOM_MODE_HOLIDAYS;
- 	} else if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
+	if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
 	  	pkomMode = PKOM_MODE_OFF;		// All is off
 	} else if (!this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
 	  	pkomMode = PKOM_MODE_BOILER;	// Water only
@@ -1278,7 +1236,7 @@ export class PKOM4Accessory {
 	// Send modified registers
 	let endPromise = await this.session.end()
 		.catch((error: Error) => {
-			this.platform.log.info("Error with nested modbus sessions %s", error.message);
+			this.platform.log.info("Modbus session is busy operation will be ignored");
 		});
 
   	this.modbusPendingSave = false;
