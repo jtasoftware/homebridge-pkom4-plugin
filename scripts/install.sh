@@ -3,7 +3,13 @@
 # Install script for PKOM Homebridge plugin
 # This script is used to install python dependencies such as virtual env. or libraries
 #
-virtualEnvFolder="/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts"
+if [ $# -ge 1 ] && [ -n $1 ]; then
+	virtualEnvFolder=$1
+else
+	virtualEnvFolder="/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts"
+fi
+
+echo "Installing into destination $virtualEnvFolder"
 pipPath="$virtualEnvFolder/bin/pip"
 
 # Create virtual python env.

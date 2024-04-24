@@ -45,9 +45,10 @@ export class PichlerPlatform implements DynamicPlatformPlugin {
 	  this.api.updatePlatformAccessories([this.cachedAccessory]);
 	  
 	} else {
-	  this.log.info('Adding new accessory:', PKOM_ACCESSORY_NAME);
+	  let name = this.config["name"] as string;
+	  this.log.info('Adding new accessory: %s', name);
 	  
-	  this.cachedAccessory = new this.api.platformAccessory(PKOM_ACCESSORY_NAME, PKOM_ACCESSORY_UUID);
+	  this.cachedAccessory = new this.api.platformAccessory(name, PKOM_ACCESSORY_UUID);
 	  this.pkomAccessory = new PKOM4Accessory(this, this.cachedAccessory);
 	  this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [this.cachedAccessory]);
 	}

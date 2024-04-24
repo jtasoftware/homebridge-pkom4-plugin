@@ -6,6 +6,12 @@
   "schema": {
     "type": "object",
     "properties": {
+      "name": {
+        "title": "Accessory name",
+        "type": "string",
+        "required": true,
+        "default": "PKOM 4"
+      },
       "simulate": {
         "title": "Simulation mode",
         "type": "boolean",

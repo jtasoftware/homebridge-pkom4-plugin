@@ -53,8 +53,10 @@ const PKOM_DEMO_OPTIONS = 4;
 const PKOM4_DEMO_SERIAL_NUMBER = "F220100001";
 const PKOM4_DEMO_FIRMWARE_VERSION = "1.0";
 
-const scriptsFolder = (__dirname + "/../scripts/");
-const pythonPath = (__dirname + "/../scripts/bin/python3");
+const scriptsFolder = (__dirname + "/../scripts");
+const relativePythonPath = "bin/python3";
+const pythonPath = (scriptsFolder + "/" + relativePythonPath);
+const shPath = "/bin/sh";
 const { spawn } = require('child_process');
 
 export class ModbusSession {
@@ -67,6 +69,7 @@ export class ModbusSession {
   private readonly demoMode: boolean;
   private readonly debugLevel: number;
   private readonly log: Logging;
+  private installed: boolean;
   public  ongoing: boolean;
 
   constructor(log: Logging, readOnly: boolean, demoMode: boolean, debugLevel: number) {
@@ -75,6 +78,7 @@ export class ModbusSession {
   	this.demoMode = demoMode;
   	this.debugLevel = debugLevel;
 	this.ongoing = false;
+	this.installed = false;
 	
 	this.registersCache = {};
 	this.registersValue = {};
@@ -182,6 +186,26 @@ export class ModbusSession {
   	this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? PKOM_DEMO_OPTIONS : 0);
   }
 
+  async install(destination: string): Promise<any> {	
+	this.log.info("Installing modbus module in homebridge storage zone");
+
+ 	destination = scriptsFolder;
+
+	// Use Schell command to create python virtual env & install modbus module
+	let promise = await this.callSchellScript("install.sh", destination)
+		.then(() => {		
+		 	this.installed = true;
+		 	if (this.debugLevel > 1) {
+	   			this.log.debug("Modbus module installed successfully into %s", destination);
+     		}
+		})
+		.catch((error: Error) => {
+			this.log.info("Error installing modbus module %s", error.message);
+		});
+ 	
+  	return promise;
+  }
+
   async begin(): Promise<any> {
   	if (this.ongoing) throw 'Session error: begin/end calls are unbalanced';
   	this.ongoing = true;
@@ -240,10 +264,36 @@ export class ModbusSession {
   	return promise;
   }
 
+  async callSchellScript(scriptName: string, param: string): Promise<any> {
+  	return new Promise(function(successCallback, failureCallback) {
+		try {
+			const shArgs = [scriptsFolder + "/" + scriptName, param];
+			const shProcess = spawn(shPath, shArgs);
+			let errorMsg = "";
+	
+			shProcess.stderr.on('data', (data: any) => {
+				errorMsg += data.toString();
+			});
+
+			shProcess.stdout.on("end", () => {
+				if (errorMsg == "") {				
+					successCallback("");
+				} else {
+					const error = new Error(errorMsg);
+					failureCallback(error);
+				}
+			})
+		}
+		catch(error) {
+			failureCallback(error);
+		}
+  	});
+  }
+
   async callPython(scriptName: string, verb: string, param?: any): Promise<any> {
 	return new Promise(function(successCallback, failureCallback) {
 		try {
-			const pyArgs = [scriptsFolder + scriptName, verb, JSON.stringify(param)];
+			const pyArgs = [scriptsFolder + "/" + scriptName, verb, JSON.stringify(param)];
 			const pyProcess = spawn(pythonPath, pyArgs );
 			let result = "";
 			let errorMsg = "";

@@ -229,6 +229,7 @@ export class PKOM4Accessory {
 
  	// Setup services asynchronously after modbus read
   	this.session = new ModbusSession(this.platform.log, this.readOnly, this.simulate, this.modbusDebugLevel);
+  	this.session.install(this.platform.api.user.storagePath());
 	this.initAccessories();
   }
 
