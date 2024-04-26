@@ -1220,8 +1220,8 @@ export class PKOM4Accessory {
 	// Changing fan speed is just an 'intention'. It might be ignored in case of higher priority task
 	// 	(e.g heating) ; this is equivalent to changing the speed level from PKOM terminal main menu.
 	// Changing mode is equivalent to changing the mode on the PKOM terminal main menu (see also above)
-	// Changing humidity control is equivalent to changing from PKOM terminal main menu
-	// Changing dioxyde control is equivalent to changing from PKOM terminal main menu
+	// Changing humidity control is equivalent to enabling/disabling it from PKOM terminal main menu
+	// Changing dioxyde control is equivalent to enabling/disabling it from PKOM terminal main menu
 	// Changing cooling behaviour is equivalent to updating 'air' settings (will toggle between on or off - do not support eco)
 	// Changing boiler behaviour is equivalent to updating 'water' settings (will toggle between on or off)
  	this.session.writeRegister(MODBUS_ADDR_USER_SPEED_LEVEL, pkomUserSpeedLevel);
