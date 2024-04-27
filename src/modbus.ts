@@ -50,6 +50,12 @@ const PKOM_DEMO_BOILER_ENERGY = 1;
 const PKOM_DEMO_SENSORS = 3;
 const PKOM_DEMO_OPTIONS = 4;
 
+const PKOM_MIN_BOILER_TEMP = 45;
+const PKOM_MIN_DEHUMID_HUMID = 60;
+const PKOM_MIN_COOL_TEMP = 22.0;
+const PKOM_MIN_HEAT_TEMP = 18.0;
+const PKOM_SPEED_LEVEL_NORMAL = 2;
+
 const PKOM4_DEMO_SERIAL_NUMBER = "F220100001";
 const PKOM4_DEMO_FIRMWARE_VERSION = "1.0";
 
@@ -156,8 +162,8 @@ export class ModbusSession {
   }
   
   initToDefaults(demoMode: boolean) {
-  	this.registersValue[MODBUS_ADDR_FIRMWARE_VERSION] = (demoMode ? PKOM4_DEMO_FIRMWARE_VERSION : "");
-  	this.registersValue[MODBUS_ADDR_SERIAL_NUMBER] = (demoMode ? PKOM4_DEMO_SERIAL_NUMBER : "");
+  	this.registersValue[MODBUS_ADDR_FIRMWARE_VERSION] = PKOM4_DEMO_FIRMWARE_VERSION;
+  	this.registersValue[MODBUS_ADDR_SERIAL_NUMBER] = (demoMode ? PKOM4_DEMO_SERIAL_NUMBER : "--------");
   	this.registersValue[MODBUS_ADDR_COOLING] = false;
   	this.registersValue[MODBUS_ADDR_HEATING] = false;
     this.registersValue[MODBUS_ADDR_ECO_TIME] = 0;
@@ -166,21 +172,21 @@ export class ModbusSession {
   	this.registersValue[MODBUS_ADDR_HUMID_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_DIOXIDE_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_MODE] = (demoMode ? PKOM_DEMO_MODE : 0);
-  	this.registersValue[MODBUS_ADDR_USER_SPEED_LEVEL] = (demoMode ? PKOM_DEMO_SPEED_LEVEL : 0);
-  	this.registersValue[MODBUS_ADDR_AUTO_SPEED_LEVEL] = (demoMode ? PKOM_DEMO_SPEED_LEVEL : 0);
-  	this.registersValue[MODBUS_ADDR_ACTUAL_SPEED_LEVEL] = (demoMode ? PKOM_DEMO_SPEED_LEVEL : 0);
+  	this.registersValue[MODBUS_ADDR_USER_SPEED_LEVEL] = (demoMode ? PKOM_DEMO_SPEED_LEVEL : PKOM_SPEED_LEVEL_NORMAL);
+  	this.registersValue[MODBUS_ADDR_AUTO_SPEED_LEVEL] = (demoMode ? PKOM_DEMO_SPEED_LEVEL : PKOM_SPEED_LEVEL_NORMAL);
+  	this.registersValue[MODBUS_ADDR_ACTUAL_SPEED_LEVEL] = (demoMode ? PKOM_DEMO_SPEED_LEVEL : PKOM_SPEED_LEVEL_NORMAL);
   	this.registersValue[MODBUS_ADDR_AIR_DIOXIDE] = (demoMode ? PKOM_DEMO_AIR_DIOXIDE : 0.0);
   	this.registersValue[MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD] = (demoMode ? PKOM_DEMO_DIOXIDE_THRESHOLD : 0.0);
-  	this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = (demoMode ? PKOM_DEMO_HUMID_THRESHOLD : 0);
+  	this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = (demoMode ? PKOM_DEMO_HUMID_THRESHOLD : PKOM_MIN_DEHUMID_HUMID);
   	this.registersValue[MODBUS_ADDR_AIR_HUMID] = (demoMode ? PKOM_DEMO_AIR_HUMID : 0.0);
   	this.registersValue[MODBUS_ADDR_AIR_TEMP] = (demoMode ? PKOM_DEMO_AIR_TEMP : 0.0);
-  	this.registersValue[MODBUS_ADDR_NORMAL_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : 0);
-  	this.registersValue[MODBUS_ADDR_ECO_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : 0);
-  	this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : 0);
-  	this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = (demoMode ? PKOM_DEMO_COOL_TEMP : 0);
+  	this.registersValue[MODBUS_ADDR_NORMAL_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
+  	this.registersValue[MODBUS_ADDR_ECO_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
+  	this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = (demoMode ? PKOM_DEMO_HEAT_TEMP : PKOM_MIN_HEAT_TEMP);
+  	this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = (demoMode ? PKOM_DEMO_COOL_TEMP : PKOM_MIN_COOL_TEMP);
   	this.registersValue[MODBUS_ADDR_BOILER_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? PKOM_DEMO_BOILER_TEMP : 0.0);
-  	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? PKOM_DEMO_BOILER_THRESHOLD : 0);
+  	this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = (demoMode ? PKOM_DEMO_BOILER_THRESHOLD : PKOM_MIN_BOILER_TEMP);
   	this.registersValue[MODBUS_ADDR_FILTER_ELAPSED_TIME] = (demoMode ? PKOM_DEMO_FILTER_DURATION : 0);
   	this.registersValue[MODBUS_ADDR_BOILER_ENERGY] = (demoMode ? PKOM_DEMO_BOILER_ENERGY : 0);
   	this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? PKOM_DEMO_SENSORS : 0);
