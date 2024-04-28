@@ -3,8 +3,9 @@
 <img src="homebridge-logo.png" width="150">
 </p>
 
-
 # Homebridge PKOM4 Plugin
+
+[![Discord](https://img.shields.io/discord/432663330281226270?color=728ED5&logo=discord&label=discord)](https://discord.gg/PamXDFsKMy)
 
 This is an Homebridge plugin to be used with Pichler PKOM4 heatpump devices.
 
