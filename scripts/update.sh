@@ -20,13 +20,13 @@ hb-service add homebridge-pichler-pkom4@"$pkomVersion"
 installedModbus=$($pipPath show minimalmodbus | /usr/bin/grep "Version:" | /usr/bin/awk '{print $2}')
 installedPip=$($pipPath show pip | /usr/bin/grep "Version:" | /usr/bin/awk '{print $2}')
 
-if [ $(version "$installedPip") -lt $(version "$pipVersion") ]; then
+if [[ $(version "$installedPip") -lt $(version "$pipVersion") ]]; then
 	$pipPath install --upgrade --upgrade-strategy "only-if-needed" pip
 else
 	echo "Pip is already up-to-date"
 fi
 
-if [ $(version "$installedModbus") -lt $(version "$modbusVersion") ]; then
+if [[ $(version "$installedModbus") -lt $(version "$modbusVersion") ]]; then
 	$pipPath install --upgrade --upgrade-strategy "only-if-needed" minimalmodbus
 else
 	echo "MinimalModbus is already up-to-date"

@@ -7,8 +7,8 @@ import { MODBUS_ADDR_AIR_DIOXIDE, MODBUS_ADDR_AIR_HUMID, MODBUS_ADDR_AIR_TEMP, M
 import { MODBUS_ADDR_BOILER_HEATING, MODBUS_ADDR_FILTER_ELAPSED_TIME, MODBUS_ADDR_SERIAL_NUMBER, MODBUS_ADDR_FIRMWARE_VERSION, MODBUS_ADDR_HARDWARE_OPTIONS, MODBUS_ADDR_HARDWARE_SENSORS } from "./modbus";
 import { PichlerPlatform } from "./pichler-platform";
 
-const MANUAL_MODE_DURATION = 600000;
-const MODBUS_POLLING_PERIOD = 60000;
+const MANUAL_MODE_DURATION = 3600000;	// 60 min
+const MODBUS_POLLING_PERIOD = 60000;	// 1 min
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;
 const FAN_SPEED_TOLERANCE = 2;
 
@@ -169,11 +169,12 @@ export class PKOM4Accessory {
   private conditionerService: Service;
   private heaterService: Service;
 
-  constructor(platform: PichlerPlatform, accessory: PlatformAccessory) {
+  constructor(platform: PichlerPlatform, accessory: PlatformAccessory, session: ModbusSession) {
 	this.accessory = accessory;
+	this.session = session;
 	this.simulate = platform.config["simulate"];
 	this.readOnly = platform.config["readOnly"];
-	this.modbusDebugLevel = platform.config["modbusDebugLevel"]
+	this.modbusDebugLevel = platform.config["modbusDebugLevel"];
 	this.dryRegion = false;
 	this.inited = false;
 	
@@ -215,8 +216,6 @@ export class PKOM4Accessory {
 	this.platform.log.info("Water heater for '%s' created", this.accessory.displayName);
 	
  	// Setup services asynchronously after modbus read
-  	this.session = new ModbusSession(this.platform.log, this.readOnly, this.simulate, this.modbusDebugLevel);
-  	this.session.install("");
 	this.initAccessories();
   }
 
@@ -863,10 +862,10 @@ export class PKOM4Accessory {
 			let heaterService = this.accessory.getService(PKOM_BOILER_NAME);
 			if (this.pkomHasWaterHeater && !heaterService) {
 				this.accessory.addService(this.heaterService);
-				this.platform.log.info("Air quality sensor is now available");
+				this.platform.log.info("Water heater is now available");
 			} else if (!this.pkomHasWaterHeater && heaterService) {
 				this.accessory.removeService(heaterService);
-				this.platform.log.info("Air quality sensor is no more available");
+				this.platform.log.info("Water heater is no more available");
 			}
 			
 			let purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier);
@@ -881,10 +880,10 @@ export class PKOM4Accessory {
 			let sensorService = this.accessory.getService(this.platform.api.hap.Service.AirQualitySensor);
 			if (this.pkomHasDioxideSensor && !sensorService) {
 				this.accessory.addService(this.sensorService);
-				this.platform.log.info("Water heater is now available");
+				this.platform.log.info("Air quality sensor is now available");
 			} else if (!this.pkomHasDioxideSensor && sensorService) {
 				this.accessory.removeService(sensorService);
-				this.platform.log.info("Water heater is no more available");
+				this.platform.log.info("Air quality sensor is no more available");
 			}
 			
 			let dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier);
@@ -975,8 +974,6 @@ export class PKOM4Accessory {
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
   	this.pkomEcoTime = this.session.readRegister(MODBUS_ADDR_ECO_TIME);
 	this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
-	this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
-	this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
 	this.purifierDioxideThreshold = this.session.readRegister(MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD);
 	this.dehumidifierHumidityThreshold = this.session.readRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD);
 	this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_HEAT_THRESHOLD);
@@ -985,6 +982,7 @@ export class PKOM4Accessory {
 	this.pkomFilterDuration = PKOM_FILTER_MAX_DURATION - this.session.readRegister(MODBUS_ADDR_FILTER_ELAPSED_TIME);
 	this.pkomSerialNumber = this.session.readRegister(MODBUS_ADDR_SERIAL_NUMBER);
 	this.pkomFirwmareVersion = this.session.readRegister(MODBUS_ADDR_FIRMWARE_VERSION);
+	this.waterHeaterActive = this.session.readRegister(MODBUS_ADDR_BOILER_ENABLED);
   	
   	// Those dynamic registers are skipped under simulation mode
 	if (!this.simulate && this.pkomEcoTime) {
@@ -995,13 +993,14 @@ export class PKOM4Accessory {
   	
   	// Those readonly registers are skipped to ensure persistance under simulation mode
   	if (!this.simulate || !this.inited) {
+  		this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
+		this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
 		this.pkomCurrentlyWaterHeating = this.session.readRegister(MODBUS_ADDR_BOILER_HEATING);
 		this.purifierDioxideLevel = this.session.readRegister(MODBUS_ADDR_AIR_DIOXIDE);
 		this.dehumidifierCurrentHumidity = this.session.readRegister(MODBUS_ADDR_AIR_HUMID);
 		this.conditionerCurrentTemperature = this.session.readRegister(MODBUS_ADDR_AIR_TEMP);
 		this.waterHeaterCurrentTemperature = this.session.readRegister(MODBUS_ADDR_BOILER_TEMP);
-		this.waterHeaterActive = this.session.readRegister(MODBUS_ADDR_BOILER_ENABLED);
-		
+
 		if (this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS)) {
 			this.pkomCurrentlyHeating = (this.session.readRegister(MODBUS_ADDR_HEATING) > 0);
 			this.pkomCurrentlyCooling = false;
@@ -1196,7 +1195,7 @@ export class PKOM4Accessory {
 	// PKOM 'Mode' is used to manage services activation. 'Unsupported Mode' is a transient situation when going through multiple steps
 	//  (e.g turning off fan then water then conditioner to turn all off). In this case register writing is postponed to next valid configuration.
 	// It means in particular that specific features such as anti-frozen, anti-legionel, bypass, etc are always active.
-  	let pkomUserSpeedLevel = (this.simulate || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : PKOM_SPEED_LEVEL_AUTO;
+  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : PKOM_SPEED_LEVEL_AUTO;
 	let pkomMode = PKOM_MODE_UNSUPPORTED;
 	
 	if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
@@ -1236,7 +1235,7 @@ export class PKOM4Accessory {
 	// Send modified registers
 	let endPromise = await this.session.end()
 		.catch((error: Error) => {
-			this.platform.log.info("Modbus session is busy operation will be ignored");
+			this.platform.log.info("Modbus session is busy, operation will be ignored");
 		});
 
   	this.modbusPendingSave = false;
@@ -1338,7 +1337,8 @@ export class PKOM4Accessory {
 		this.pkomCurrentlyHeating = false;
 		this.platform.log.info("Simulation - stoping air cooling");
 	}
-
+  	
+  	this.pkomActualSpeedLevel = this.pkomUserSpeedLevel;
 	this.fanCurrentSpeedLevel = this.pkomUserSpeedLevel - 1;
     this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
   }

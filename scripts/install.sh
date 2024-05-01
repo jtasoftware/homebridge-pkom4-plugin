@@ -7,44 +7,42 @@
 #
 if [ $# -ge 1 ] && [ -n $1 ]; then
 	virtualEnvFolder=$1
+	echo "Installing into destination $virtualEnvFolder"
 else
 	virtualEnvFolder="/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts"
+	echo "Installing into default destination"
 fi
 
-echo "Installing into destination $virtualEnvFolder"
 pipPath="$virtualEnvFolder/bin/pip"
 
 # Check existing installation
-venvInstalled=0
 modbusInstalled=0
+venvInstalled=$(command -v $pipPath 2>&1 | /usr/bin/grep -c "/bin/pip")
 
-if [ -f $pipPath ]; then
-	echo "Checking available python virtual environment…"
-	venvInstalled=1
-	modbusInstalled=$($pipPath show minimalmodbus | /usr/bin/grep -c "Version:")
+if [ $venvInstalled -eq 1 ]; then
+	echo "Checking available python virtual environment"	
+	modbusInstalled=$($pipPath show minimalmodbus 2>&1 | /usr/bin/grep -c "Version:")
 fi
 
 # Deal with possibly corrupted environment
 if [ $venvInstalled -eq 1 ] && [ $modbusInstalled -eq 0 ]; then
-	echo "Removing previous python virtual environment…"
+	echo "Removing previous python virtual environment"
 	venvInstalled=0
 	
 	/bin/rm -rf "$virtualEnvFolder/lib"
 	/bin/rm -rf "$virtualEnvFolder/bin"
 	/bin/rm -rf "$virtualEnvFolder/include"
-	/bin/rm -f "$virtualEnvFolder/lib64"
-	/bin/rm -f "$virtualEnvFolder/pyvenv.cfg"
 fi
 
 # Create virtual python env.
 if [ $venvInstalled -eq 0 ]; then
-	echo "Creating private python virtual environment…"
+	echo "Creating private python virtual environment"
 	/usr/bin/python3 -m venv "$virtualEnvFolder"
 fi
 
 # Install dependencies
 if [ -f $pipPath ] && [ $modbusInstalled -eq 0 ]; then
-	echo "Installing minimal modbus…"
+	echo "Installing minimal modbus"
 	$pipPath install minimalmodbus
 	
 	modbusInstalled=$($pipPath show minimalmodbus | /usr/bin/grep -c "Version:")

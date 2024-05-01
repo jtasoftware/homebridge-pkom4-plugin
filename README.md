@@ -5,6 +5,7 @@
 
 # Homebridge PKOM4 Plugin
 
+[![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![Discord](https://img.shields.io/discord/432663330281226270?color=728ED5&logo=discord&label=discord)](https://discord.gg/PamXDFsKMy)
 
 This is an Homebridge plugin to be used with Pichler PKOM4 heatpump devices.
