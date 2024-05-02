@@ -8,7 +8,7 @@ import { MODBUS_ADDR_BOILER_HEATING, MODBUS_ADDR_FILTER_ELAPSED_TIME, MODBUS_ADD
 import { PichlerPlatform } from "./pichler-platform";
 
 const MANUAL_MODE_DURATION = 3600000;	// 60 min
-const MODBUS_POLLING_PERIOD = 60000;	// 1 min
+const MODBUS_POLLING_PERIOD = 120000;	//  2 min
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;
 const FAN_SPEED_TOLERANCE = 2;
 
@@ -193,15 +193,15 @@ export class PKOM4Accessory {
     this.fanService.setPrimaryService(true);
     this.platform.log.info("Mechanical ventilation for '%s' created", this.accessory.displayName);
 
-    this.filterService = this.accessory.getService(this.platform.api.hap.Service.FilterMaintenance) || this.accessory.addService(this.platform.api.hap.Service.FilterMaintenance, PKOM_FILTER_NAME, PKOM_IN_FILTER_TYPE);
-    this.platform.log.info("Filter maintenance for '%s' created", this.accessory.displayName);
-
     this.sensorService = this.accessory.getService(this.platform.api.hap.Service.AirQualitySensor) || this.accessory.addService(this.platform.api.hap.Service.AirQualitySensor, PKOM_AIR_QUALITY_NAME, PKOM_AIR_QUALITY_TYPE);
 	this.platform.log.info("Air quality sensor for '%s' created", this.accessory.displayName);
 
+    this.filterService = this.accessory.getService(this.platform.api.hap.Service.FilterMaintenance) || this.accessory.addService(this.platform.api.hap.Service.FilterMaintenance, PKOM_FILTER_NAME, PKOM_IN_FILTER_TYPE);
+    this.platform.log.info("Filter maintenance for '%s' created", this.accessory.displayName);
+
     this.purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier) || this.accessory.addService(this.platform.api.hap.Service.AirPurifier, PKOM_PURIFIER_NAME, PKOM_PURIFIER_TYPE);
 	this.purifierService.addLinkedService(this.sensorService);
-	this.purifierService.addLinkedService(this.filterService);
+ 	this.purifierService.addLinkedService(this.filterService);
 	this.platform.log.info("Air purifier for '%s' created", this.accessory.displayName);
 
     this.dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier) || this.accessory.addService(this.platform.api.hap.Service.HumidifierDehumidifier, PKOM_DEHUMIDIFIER_NAME, PKOM_DEHUMIDIFIER_TYPE);
@@ -973,7 +973,6 @@ export class PKOM4Accessory {
   	// Readwrite register are persisted by session under simulation mode
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
   	this.pkomEcoTime = this.session.readRegister(MODBUS_ADDR_ECO_TIME);
-	this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
 	this.purifierDioxideThreshold = this.session.readRegister(MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD);
 	this.dehumidifierHumidityThreshold = this.session.readRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD);
 	this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_HEAT_THRESHOLD);
@@ -982,7 +981,6 @@ export class PKOM4Accessory {
 	this.pkomFilterDuration = PKOM_FILTER_MAX_DURATION - this.session.readRegister(MODBUS_ADDR_FILTER_ELAPSED_TIME);
 	this.pkomSerialNumber = this.session.readRegister(MODBUS_ADDR_SERIAL_NUMBER);
 	this.pkomFirwmareVersion = this.session.readRegister(MODBUS_ADDR_FIRMWARE_VERSION);
-	this.waterHeaterActive = this.session.readRegister(MODBUS_ADDR_BOILER_ENABLED);
   	
   	// Those dynamic registers are skipped under simulation mode
 	if (!this.simulate && this.pkomEcoTime) {
@@ -993,6 +991,7 @@ export class PKOM4Accessory {
   	
   	// Those readonly registers are skipped to ensure persistance under simulation mode
   	if (!this.simulate || !this.inited) {
+  		this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
   		this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
 		this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
 		this.pkomCurrentlyWaterHeating = this.session.readRegister(MODBUS_ADDR_BOILER_HEATING);
@@ -1049,6 +1048,7 @@ export class PKOM4Accessory {
   		case PKOM_MODE_OFF:
 	  		this.fanSwitchedOn = false;
 	  		this.conditionerActive = false;
+	  		this.waterHeaterActive = false;
 	  		this.conditionerCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
 			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
 			this.waterHeaterCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
@@ -1058,6 +1058,7 @@ export class PKOM4Accessory {
   		case PKOM_MODE_SUMMER:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = coolEnabled;
+	  		this.waterHeaterActive = true;
 	  		this.conditionerCurrentState = currentConditionerStatus;
 			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.COOL;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
@@ -1067,6 +1068,7 @@ export class PKOM4Accessory {
   		case PKOM_MODE_WINTER:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = true;
+	  		this.waterHeaterActive = true;
 	  		this.conditionerCurrentState = currentConditionerStatus;
 			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
@@ -1076,6 +1078,7 @@ export class PKOM4Accessory {
   		case PKOM_MODE_AUTO:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = true;
+	  		this.waterHeaterActive = true;	// this.session.readRegister(MODBUS_ADDR_BOILER_ENABLED);
 	  		this.conditionerCurrentState = currentConditionerStatus;
 			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
@@ -1085,6 +1088,7 @@ export class PKOM4Accessory {
   		case PKOM_MODE_HOLIDAYS:
 	  		this.fanSwitchedOn = true;
 	  		this.conditionerActive = false;
+	  		this.waterHeaterActive = false;
 	  		this.conditionerCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
 			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
 			this.waterHeaterCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
@@ -1094,6 +1098,7 @@ export class PKOM4Accessory {
   		case PKOM_MODE_BOILER:
 	  		this.fanSwitchedOn = false;
 	  		this.conditionerActive = false;
+	  		this.waterHeaterActive = true;
 	  		this.conditionerCurrentState = this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.INACTIVE;
 			this.conditionerTargetState = this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO;
 			this.waterHeaterCurrentState = currentWaterHeaterStatus;
@@ -1202,8 +1207,8 @@ export class PKOM4Accessory {
 	  	pkomMode = PKOM_MODE_OFF;		// All is off
 	} else if (!this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
 	  	pkomMode = PKOM_MODE_BOILER;	// Water only
-	} else if (this.fanSwitchedOn && !this.waterHeaterActive && this.conditionerActive) {
- 		pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well
+// 	} else if (this.fanSwitchedOn && !this.waterHeaterActive && this.conditionerActive) {
+//  		pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well
 	} else if (this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
  		pkomMode = PKOM_MODE_HOLIDAYS;	// Fan only, need to specify duration
  	} else if (this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
@@ -1229,8 +1234,12 @@ export class PKOM4Accessory {
  	if (pkomMode != PKOM_MODE_UNSUPPORTED) {
 	 	this.session.writeRegister(MODBUS_ADDR_MODE, pkomMode);
 	  	this.session.writeRegister(MODBUS_ADDR_COOL_ENABLED, (this.conditionerActive || (pkomMode != PKOM_MODE_SUMMER)));
-	  	this.session.writeRegister(MODBUS_ADDR_BOILER_ENABLED, (this.waterHeaterActive || (pkomMode != PKOM_MODE_AUTO)));
+// 	  	this.session.writeRegister(MODBUS_ADDR_BOILER_ENABLED, (this.waterHeaterActive || (pkomMode != PKOM_MODE_AUTO)));
  	}
+  	
+  	if (this.simulate) {
+  	 this.pkomActualSpeedLevel = pkomUserSpeedLevel;
+  	}
   	
 	// Send modified registers
 	let endPromise = await this.session.end()
@@ -1277,7 +1286,7 @@ export class PKOM4Accessory {
   	
 	this.purifierDioxideLevel = Math.min(Math.max(this.purifierDioxideLevel + dioxideIncrement, 450), 4999);
 	this.dehumidifierCurrentHumidity =  Math.min(Math.max(this.dehumidifierCurrentHumidity + humidityIncrement, 10), 89);
-	this.platform.log.info("Simulation - air quality modulating (∆h:%d, ∆d:%d)", humidityIncrement, dioxideIncrement);
+	this.platform.log.info("Simulation - air quality modulating (∆h:%d, ∆d:%d)", humidityIncrement.toFixed(2), dioxideIncrement);
 
 	if (this.purifierActive && this.purifierDioxideLevel > this.purifierDioxideThreshold && this.pkomUserSpeedLevel < PKOM_PURIFIER_LEVEL) {
 		this.pkomUserSpeedLevel = PKOM_PURIFIER_LEVEL;
