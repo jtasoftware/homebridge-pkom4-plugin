@@ -1038,10 +1038,10 @@ export class PKOM4Accessory {
 	let currentWaterHeaterStatus = (this.pkomCurrentlyWaterHeating ? this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.HEATING : this.platform.api.hap.Characteristic.CurrentHeaterCoolerState.IDLE);
 	
 	// Adjust current status based on PKOM automatic behaviour
-	if (this.fanCurrentSpeedLevel >= PKOM_DEHUMID_LEVEL && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold) {
-		currentPurifierStatus = this.platform.api.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
-	} else if (this.fanCurrentSpeedLevel >= PKOM_PURIFIER_LEVEL && this.purifierDioxideLevel > this.purifierDioxideThreshold) {
+	if (!this.dehumidifierManualMode && this.fanCurrentSpeedLevel >= PKOM_DEHUMID_LEVEL && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold) {
 		currentHumidifierStatus = this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING;
+	} else if (!this.purifierManualMode && this.fanCurrentSpeedLevel >= PKOM_PURIFIER_LEVEL && this.purifierDioxideLevel > this.purifierDioxideThreshold) {
+		currentPurifierStatus = this.platform.api.hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR;
 	} 
 
   	switch (this.pkomMode) {
@@ -1116,7 +1116,7 @@ export class PKOM4Accessory {
   	this.purifierTargetState = (this.purifierManualMode ? this.platform.api.hap.Characteristic.TargetAirPurifierState.MANUAL : this.platform.api.hap.Characteristic.TargetAirPurifierState.AUTO);
 	this.dehumidifierActive = (this.fanSwitchedOn && dehumidifierActive);
 	this.dehumidifierCurrentState = (this.dehumidifierActive ? currentHumidifierStatus : this.platform.api.hap.Characteristic.CurrentHumidifierDehumidifierState.INACTIVE);
-  	this.dehumidifierTargetState = this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO;
+  	this.dehumidifierTargetState = (this.dehumidifierManualMode ? this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.DEHUMIDIFIER : this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO);
 
 	// Fetch hardware infos
 	this.pkomHasWaterHeater = (boilerEnergy > 0);
