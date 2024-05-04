@@ -9,7 +9,7 @@ import { PichlerPlatform } from "./pichler-platform";
 
 const MANUAL_MODE_DURATION = 3600000;	// 60 min
 const MODBUS_POLLING_PERIOD = 120000;	//  2 min
-const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;
+const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;	// 5s while using accessories
 const FAN_SPEED_TOLERANCE = 2;
 
 export const PKOM_ACCESSORY_NAME = "PKOM 4";
@@ -973,25 +973,23 @@ export class PKOM4Accessory {
   	// Readwrite register are persisted by session under simulation mode
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
   	this.pkomEcoTime = this.session.readRegister(MODBUS_ADDR_ECO_TIME);
+	this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
 	this.purifierDioxideThreshold = this.session.readRegister(MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD);
 	this.dehumidifierHumidityThreshold = this.session.readRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD);
-	this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_HEAT_THRESHOLD);
 	this.conditionerCoolingThreshold = this.session.readRegister(MODBUS_ADDR_COOL_THRESHOLD);
 	this.waterHeaterHeatingThreshold = this.session.readRegister(MODBUS_ADDR_MIN_BOILER_THRESHOLD);
-	this.pkomFilterDuration = PKOM_FILTER_MAX_DURATION - this.session.readRegister(MODBUS_ADDR_FILTER_ELAPSED_TIME);
 	this.pkomSerialNumber = this.session.readRegister(MODBUS_ADDR_SERIAL_NUMBER);
 	this.pkomFirwmareVersion = this.session.readRegister(MODBUS_ADDR_FIRMWARE_VERSION);
   	
   	// Those dynamic registers are skipped under simulation mode
 	if (!this.simulate && this.pkomEcoTime) {
 		this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_ECO_THRESHOLD);
-	} else if (!this.simulate) {
+	} else {
 		this.conditionerHeatingThreshold = this.session.readRegister(MODBUS_ADDR_NORMAL_THRESHOLD);
 	}
   	
   	// Those readonly registers are skipped to ensure persistance under simulation mode
   	if (!this.simulate || !this.inited) {
-  		this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
   		this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
 		this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
 		this.pkomCurrentlyWaterHeating = this.session.readRegister(MODBUS_ADDR_BOILER_HEATING);
@@ -999,6 +997,7 @@ export class PKOM4Accessory {
 		this.dehumidifierCurrentHumidity = this.session.readRegister(MODBUS_ADDR_AIR_HUMID);
 		this.conditionerCurrentTemperature = this.session.readRegister(MODBUS_ADDR_AIR_TEMP);
 		this.waterHeaterCurrentTemperature = this.session.readRegister(MODBUS_ADDR_BOILER_TEMP);
+		this.pkomFilterDuration = PKOM_FILTER_MAX_DURATION - this.session.readRegister(MODBUS_ADDR_FILTER_ELAPSED_TIME);
 
 		if (this.conditionerCurrentTemperature < (this.conditionerHeatingThreshold + PKOM_HEAT_HYSTERESIS)) {
 			this.pkomCurrentlyHeating = (this.session.readRegister(MODBUS_ADDR_HEATING) > 0);
@@ -1350,5 +1349,9 @@ export class PKOM4Accessory {
   	this.pkomActualSpeedLevel = this.pkomUserSpeedLevel;
 	this.fanCurrentSpeedLevel = this.pkomUserSpeedLevel - 1;
     this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
+    
+    let	timeIncrement = 1 / 3600000 * MODBUS_POLLING_PERIOD;
+    this.pkomFilterDuration = Math.max(this.pkomFilterDuration - timeIncrement, 0);
+    this.platform.log.debug("Simulation - remaining filter duration %d hours", this.pkomFilterDuration.toFixed(1));
   }
 }
