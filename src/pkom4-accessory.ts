@@ -15,7 +15,7 @@ const FAN_SPEED_TOLERANCE = 2;
 export const PKOM_ACCESSORY_NAME = "PKOM 4";
 export const PKOM_ACCESSORY_UUID = "2FE3C6CF-FA12-43C4-9E5B-9A0CED436307";
 
-const PKOM_AIR_QUALITY_SCALE = [ 0.0, 0.0, 400.0, 1000.0, 1500.0, 2000.0 ];
+const PKOM_AIR_QUALITY_SCALE = [ 0.0, 1.0, 850.0, 1100.0, 1600.0, 2600.0 ];	// See ANSES 2012-SA-0093
 const PKOM_AIR_ROTATION_SCALE = [ 25.0, 50.0, 75.0, 90.0 ];
 
 const PKOM_MODEL_NAME_FULL = "PKOM4 Classic";
@@ -28,6 +28,7 @@ const PKOM_AIR_CONDITIONER_NAME = "Air Conditioner";
 const PKOM_PURIFIER_NAME = "Air Purifier";
 const PKOM_DEHUMIDIFIER_NAME = "Dehumidifier";
 const PKOM_BOILER_NAME = "Water Heater";
+const PKOM_BYPASS_NAME = "Bypass";
 
 const PKOM_INFO_UUID = "000000FF-0000-2000-8000-000000000001";
 const PKOM_FAN_UUID = "000000FF-0000-2000-8000-000000000002";
@@ -38,6 +39,7 @@ const PKOM_AIR_CONDITIONER_UUID = "000000FF-0000-2000-8000-000000000006";
 const PKOM_PURIFIER_UUID = "000000FF-0000-2000-8000-000000000007";
 const PKOM_DEHUMIDIFIER_UUID = "000000FF-0000-2000-8000-000000000008";
 const PKOM_BOILER_UUID = "000000FF-0000-2000-8000-000000000009";
+const PKOM_BYPASS_UUID = "000000FF-0000-2000-8000-00000000000A";
 
 const PKOM_INFO_TYPE = "com.pichler.pkom.infos";
 const PKOM_FAN_TYPE = "com.pichler.pkom.fan";
@@ -48,6 +50,7 @@ const PKOM_AIR_CONDITIONER_TYPE = "com.pichler.pkom.conditioner";
 const PKOM_PURIFIER_TYPE = "com.pichler.pkom.purifier";
 const PKOM_DEHUMIDIFIER_TYPE = "com.pichler.pkom.dehumidifier";
 const PKOM_BOILER_TYPE = "com.pichler.pkom.boiler";
+const PKOM_BYPASS_TYPE = "com.pichler.pkom.bypass";
 
 const PKOM_MODE_UNSUPPORTED = -1;
 const PKOM_MODE_OFF = 0;
@@ -78,11 +81,13 @@ const PKOM_MAX_COOL_TEMP = 28.0;
 const PKOM_MIN_HEAT_TEMP = 18.0;
 const PKOM_MAX_HEAT_TEMP = 25.0;
 const PKOM_TEMP_STEP = 0.5;
+const PKOM_BYPASS_CLOSED = 0;
+const PKOM_BYPASS_OPENED = 1;
 const PKOM_HUMID_STEP = 1;
 const PKOM_HUMID_LEVEL = PKOM_SPEED_LEVEL_LOW;
 const PKOM_DEHUMID_LEVEL = PKOM_SPEED_LEVEL_ACTIVE;
 const PKOM_PURIFIER_LEVEL = PKOM_SPEED_LEVEL_HIGH;
-const PKOM_FILTER_DURATION_ALERT = 360.0;	// 15 days (hours)
+const PKOM_FILTER_DURATION_ALERT = 0.0;		// 0 hours - alert is displayed after the period elapsed
 const PKOM_FILTER_MAX_DURATION = 2400.0; 	// 100 days (hours)
 
 export class PKOM4Accessory {
@@ -124,6 +129,8 @@ export class PKOM4Accessory {
   private fanRotationSpeed = 0;
   private fanRotationScale = PKOM_AIR_ROTATION_SCALE;
   private fanManualMode = false;
+
+  private byPassOpened = true;
   
   private filterChangeAlert = false;
   private filterLifeLevel = 0.0;
@@ -163,6 +170,7 @@ export class PKOM4Accessory {
   private informationService: Service;
   private fanService: Service;
   private filterService: Service;
+  private byPassService: Service;
   private sensorService: Service;
   private purifierService: Service;
   private dehumidifierService: Service;
@@ -199,17 +207,23 @@ export class PKOM4Accessory {
     this.filterService = this.accessory.getService(this.platform.api.hap.Service.FilterMaintenance) || this.accessory.addService(this.platform.api.hap.Service.FilterMaintenance, PKOM_FILTER_NAME, PKOM_IN_FILTER_TYPE);
     this.platform.log.info("Filter maintenance for '%s' created", this.accessory.displayName);
 
+    this.byPassService = this.accessory.getService(this.platform.api.hap.Service.Slats) || this.accessory.addService(this.platform.api.hap.Service.Slats, PKOM_BYPASS_NAME, PKOM_BYPASS_TYPE);
+    this.platform.log.info("Bypass for '%s' created", this.accessory.displayName);
+
     this.purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier) || this.accessory.addService(this.platform.api.hap.Service.AirPurifier, PKOM_PURIFIER_NAME, PKOM_PURIFIER_TYPE);
 	this.purifierService.addLinkedService(this.sensorService);
  	this.purifierService.addLinkedService(this.filterService);
+    this.purifierService.addLinkedService(this.byPassService);
 	this.platform.log.info("Air purifier for '%s' created", this.accessory.displayName);
 
     this.dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier) || this.accessory.addService(this.platform.api.hap.Service.HumidifierDehumidifier, PKOM_DEHUMIDIFIER_NAME, PKOM_DEHUMIDIFIER_TYPE);
     this.dehumidifierService.addLinkedService(this.fanService);
+    this.dehumidifierService.addLinkedService(this.byPassService);
 	this.platform.log.info("Dehumidifier for '%s' created", this.accessory.displayName);
     
     this.conditionerService = this.accessory.getService(PKOM_AIR_CONDITIONER_NAME) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, PKOM_AIR_CONDITIONER_NAME, PKOM_AIR_CONDITIONER_TYPE);
     this.conditionerService.addLinkedService(this.fanService);
+    this.conditionerService.addLinkedService(this.byPassService);
     this.platform.log.info("Air conditioner for '%s' created", this.accessory.displayName);
 
     this.heaterService = this.accessory.getService(PKOM_BOILER_NAME) || this.accessory.addService(this.platform.api.hap.Service.HeaterCooler, PKOM_BOILER_NAME, PKOM_BOILER_TYPE);
@@ -464,6 +478,15 @@ export class PKOM4Accessory {
 		callback();
 	  });
 
+	this.byPassService.updateCharacteristic(this.platform.api.hap.Characteristic.SlatType, this.platform.api.hap.Characteristic.SlatType.HORIZONTAL);
+	this.byPassService.updateCharacteristic(this.platform.api.hap.Characteristic.Name, PKOM_BYPASS_NAME);
+	this.byPassService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentSlatState)
+	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+		this.willObserveModbusStatus();
+		this.platform.log.debug("Bypass is " + (this.byPassOpened ? "opened" : "closed"));
+		callback(undefined, (this.byPassOpened? this.platform.api.hap.Characteristic.CurrentSlatState.SWINGING : this.platform.api.hap.Characteristic.CurrentSlatState.FIXED));
+	  });
+
 	this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.Active)
 	  .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 		this.willObserveModbusStatus();
@@ -658,7 +681,7 @@ export class PKOM4Accessory {
 	this.purifierAirQuality = 0;
 
 	for (var index = 0; index < this.purifierAirQualityScale.length; index++) {
-		if (this.purifierDioxideLevel > this.purifierAirQualityScale[index]) {
+		if (this.purifierDioxideLevel >= this.purifierAirQualityScale[index]) {
 			this.purifierAirQuality = index;
 		}
 	}

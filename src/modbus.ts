@@ -26,6 +26,7 @@ export const MODBUS_ADDR_BOILER_ENABLED = 136;		// BOOL, RW
 export const MODBUS_ADDR_BOILER_TEMP = 162;			// FIXED, RO
 export const MODBUS_ADDR_BOILER_ENERGY = 38;		// INT, RO (kWh)
 export const MODBUS_ADDR_BOILER_HEATING = 30;		// INT, RO (Remaining time) - see also 24 (W)
+export const MODBUS_ADDR_BYPASS_STATE = 205;		// INT, RO
 export const MODBUS_ADDR_FILTER_ELAPSED_TIME = 315;	// INT, RW
 export const MODBUS_ADDR_SERIAL_NUMBER = 1006;		// STRING, RO
 export const MODBUS_ADDR_FIRMWARE_VERSION = 36;		// FIXED, RO
@@ -111,6 +112,7 @@ export class ModbusSession {
   		MODBUS_ADDR_BOILER_TEMP,
   		MODBUS_ADDR_BOILER_ENERGY,
   		MODBUS_ADDR_BOILER_HEATING,
+  		MODBUS_ADDR_BYPASS_STATE,
   		MODBUS_ADDR_FILTER_ELAPSED_TIME,
   		MODBUS_ADDR_SERIAL_NUMBER,
 		MODBUS_ADDR_FIRMWARE_VERSION,
@@ -146,6 +148,7 @@ export class ModbusSession {
   		false,
   		false,
   		false,
+  		false,
 		false,
   		false,
   		false
@@ -163,6 +166,7 @@ export class ModbusSession {
   	this.registersValue[MODBUS_ADDR_HEATING] = false;
     this.registersValue[MODBUS_ADDR_ECO_TIME] = 0;
   	this.registersValue[MODBUS_ADDR_BOILER_HEATING] = false;
+  	this.registersValue[MODBUS_ADDR_BYPASS_STATE] = 0;
   	this.registersValue[MODBUS_ADDR_COOL_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_HUMID_ENABLED] = demoMode;
   	this.registersValue[MODBUS_ADDR_DIOXIDE_ENABLED] = demoMode;
