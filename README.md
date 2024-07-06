@@ -71,7 +71,7 @@ The following services will be available depending on your PKOM version:
 * **Air Conditioner** (all models): setup air temperatures for cooling or heating. You can turn off either heating or cooling. 
 * **Air Purifier** (models with dioxide sensor): view air quality or force ventilation until better quality is reached. You can turn it off.
 * **Deshumidifier** (models with humidity sensor): view humidity level or force ventilation until deshumidified. You can turn it off.
-* **Water Header** (PKOM Classic): setup water temperature from 35° to 55°. You can reach 65° if you have water resistance installed.
+* **Water Header** (PKOM Classic): setup water temperature from 35°C (95°F) to 55°C (130°F). You can reach 65°C (150°F) if you have water resistance installed.
 
 Involved PKOM features:
 * CVM level 1 to 4 based on Fan speed (25/50/75/90%)
