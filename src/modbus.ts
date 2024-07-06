@@ -363,7 +363,7 @@ export class ModbusSession {
   }
   
   readRegister(address: number): any {
-    if (this.debugLevel > 1) {
+    if (this.debugLevel > 1 && address != MODBUS_ADDR_SERIAL_NUMBER) {
 		this.log.debug("Reading modbus register %d:%d", address, this.registersValue[address]);
 	}
 	return this.registersValue[address];

@@ -41,6 +41,12 @@ else:
 if (param2 == ""):
 	param2 = '{}'
 
+# Setup modbus data format and register types. All tables have bus address as entry value.
+# - modbusRegistersType & modbusRegistersDecimal will define the data type
+# - modbusRegistersMode will attach hold registers to 'RW' and input to 'RO' while reading
+# 	writing registers is only considered to 'RW' addresses and uses single register write
+# - modbusRegistersMigration is an utility table that map obsolete adresses to replacement one
+# 	usefull to implement a retro compatiblity with legacy code
 modbusRegistersType = {
   '0': 'unsigned',
   '9': 'unsigned',
@@ -69,10 +75,11 @@ modbusRegistersType = {
   '162': 'signed',
   '191': 'unsigned',
   '201': 'signed',
+  '205': 'unsigned',
   '315': 'unsigned',
   '483': 'unsigned',
   '484': 'unsigned',
-#  '1006': 'string',
+  '1006': 'string',
   '1019': 'signed'
 }
 modbusRegistersDecimal = {
@@ -103,10 +110,11 @@ modbusRegistersDecimal = {
   '162': 2,
   '191': 0,
   '201': 2,
+  '205': 0,
   '315': 0,
   '483': 0,
   '484': 1,
-#  '1006': 4,
+  '1006': 0,
   '1019': 2
 }
 modbusRegistersMode = {
@@ -137,14 +145,15 @@ modbusRegistersMode = {
   '162': 'RO',
   '191': 'RO',
   '201': 'RW',
+  '205': 'RO',
   '315': 'RW',
   '483': 'RO',
   '484': 'RO',
-#  '1006': '',
+  '1006': '',
   '1019': 'RO'
 }
 modbusRegistersMigration = {
-  '1006': '129'
+  '1000': '1'
 }
 modbusRegisters = json.loads(param2)
 
@@ -196,7 +205,7 @@ if (verb == "get" or verb == "set"):
 
 			# Specific trick for duplicated adresses with holding & input variants
 			# Input version is used by adding 1000 by caller 
-			if (address > 1000):
+			if (address > 1000 and modbusRegistersType[alias] != 'string'):
 				address = address - 1000
 				mode = READ_INPUT_REGISTER
 
@@ -225,8 +234,8 @@ if (verb == "get" or verb == "set"):
 		syslog.syslog(syslog.LOG_INFO, "Error: Bad data format, double check modbus decimal or signed setup")
 		sys.exit("(format error in response)")
 	except minimalmodbus.IllegalRequestError:
-		syslog.syslog(syslog.LOG_INFO, "Error: Illegal address, double check modbus address")
-		sys.exit("(illegal data address)")
+		syslog.syslog(syslog.LOG_INFO, "Error: Illegal address or data, double check modbus address or value")
+		sys.exit("(illegal address or data)")
 	except Exception as error:
 		syslog.syslog(syslog.LOG_INFO, "Error: Generic exception catched " + str(error))
 		sys.exit("(unexpected error)")

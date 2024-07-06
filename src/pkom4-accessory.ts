@@ -106,6 +106,7 @@ export class PKOM4Accessory {
   private modbusLoadTimestamp = 0.0;
   
   private pkomMode = 0;
+  private pkomManualMode = false;
   private pkomUserSpeedLevel = 0;
   private pkomActualSpeedLevel = 0;
   private pkomAutoSpeedLevel = 0;
@@ -120,7 +121,7 @@ export class PKOM4Accessory {
   private pkomHasAirResistance = true;
   private pkomPurifierWaterHeating = false;
   private pkomSerialNumber = "";
-  private pkomFirwmareVersion = "";
+  private pkomFirwmareVersion = 0.0;
   private pkomFilterDuration = 0;
 
   private fanSwitchedOn = false;
@@ -130,7 +131,7 @@ export class PKOM4Accessory {
   private fanRotationScale = PKOM_AIR_ROTATION_SCALE;
   private fanManualMode = false;
 
-  private byPassOpened = true;
+  private byPassOpened = false;
   
   private filterChangeAlert = false;
   private filterLifeLevel = 0.0;
@@ -250,7 +251,7 @@ export class PKOM4Accessory {
 	
 	this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT))
 		.updateCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, this.pkomSerialNumber)
-		.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
+		.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion.toString());
 	this.informationService.getCharacteristic(this.platform.api.hap.Characteristic.Identify)
 	  .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 		this.platform.log.info("Identifying device #" + this.pkomSerialNumber);
@@ -648,6 +649,7 @@ export class PKOM4Accessory {
 	}
 	
 	if (changed) {
+		this.fanManualMode = true;
 		this.fanSpeedLevelChanged();
 	}
   }
@@ -920,7 +922,7 @@ export class PKOM4Accessory {
 	
 			// Update implied characteristics
 			this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT))
-				.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion);
+				.updateCharacteristic(this.platform.api.hap.Characteristic.FirmwareRevision, this.pkomFirwmareVersion.toString());
 			this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.On, this.fanSwitchedOn);
 			this.fanService.updateCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed, this.fanRotationSpeed);
 			this.conditionerService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.conditionerActive);
@@ -1013,6 +1015,7 @@ export class PKOM4Accessory {
   	
   	// Those readonly registers are skipped to ensure persistance under simulation mode
   	if (!this.simulate || !this.inited) {
+  		this.pkomManualMode = (this.pkomUserSpeedLevel != PKOM_SPEED_LEVEL_AUTO);
   		this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
 		this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
 		this.pkomCurrentlyWaterHeating = this.session.readRegister(MODBUS_ADDR_BOILER_HEATING);
@@ -1222,7 +1225,7 @@ export class PKOM4Accessory {
 	// PKOM 'Mode' is used to manage services activation. 'Unsupported Mode' is a transient situation when going through multiple steps
 	//  (e.g turning off fan then water then conditioner to turn all off). In this case register writing is postponed to next valid configuration.
 	// It means in particular that specific features such as anti-frozen, anti-legionel, bypass, etc are always active.
-  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : PKOM_SPEED_LEVEL_AUTO;
+  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : this.pkomActualSpeedLevel;//PKOM_SPEED_LEVEL_AUTO;	Auto mode is documented but refused by Modbus 
 	let pkomMode = PKOM_MODE_UNSUPPORTED;
 	
 	if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
@@ -1230,7 +1233,7 @@ export class PKOM4Accessory {
 	} else if (!this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
 	  	pkomMode = PKOM_MODE_BOILER;	// Water only
 // 	} else if (this.fanSwitchedOn && !this.waterHeaterActive && this.conditionerActive) {
-//  		pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well
+//  		pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well - no documented way to do this ; to be fixed
 	} else if (this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
  		pkomMode = PKOM_MODE_HOLIDAYS;	// Fan only, need to specify duration
  	} else if (this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
@@ -1255,8 +1258,8 @@ export class PKOM4Accessory {
   	this.session.writeRegister(MODBUS_ADDR_DIOXIDE_ENABLED, this.purifierActive);
  	if (pkomMode != PKOM_MODE_UNSUPPORTED) {
 	 	this.session.writeRegister(MODBUS_ADDR_MODE, pkomMode);
-	  	this.session.writeRegister(MODBUS_ADDR_COOL_ENABLED, (this.conditionerActive || (pkomMode != PKOM_MODE_SUMMER)));
-// 	  	this.session.writeRegister(MODBUS_ADDR_BOILER_ENABLED, (this.waterHeaterActive || (pkomMode != PKOM_MODE_AUTO)));
+//	  	this.session.writeRegister(MODBUS_ADDR_COOL_ENABLED, (this.conditionerActive || (pkomMode != PKOM_MODE_SUMMER)));	Caution: undocumented value '2' is used by PKOM ; disabled until clarification
+// 	  	this.session.writeRegister(MODBUS_ADDR_BOILER_ENABLED, (this.waterHeaterActive || (pkomMode != PKOM_MODE_AUTO)));	See above missing information about turning off boiler
  	}
   	
   	if (this.simulate) {
