@@ -106,7 +106,6 @@ export class PKOM4Accessory {
   private modbusLoadTimestamp = 0.0;
   
   private pkomMode = 0;
-  private pkomManualMode = false;
   private pkomUserSpeedLevel = 0;
   private pkomActualSpeedLevel = 0;
   private pkomAutoSpeedLevel = 0;
@@ -997,7 +996,7 @@ export class PKOM4Accessory {
 
   	// Readwrite register are persisted by session under simulation mode
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
-  	this.pkomEcoTime = this.session.readRegister(MODBUS_ADDR_ECO_TIME);
+  	this.pkomEcoTime = (this.session.readRegister(MODBUS_ADDR_COOL_ENABLED) != PKOM_COOLING_ECO);//this.session.readRegister(MODBUS_ADDR_ECO_TIME);
 	this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
 	this.purifierDioxideThreshold = this.session.readRegister(MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD);
 	this.dehumidifierHumidityThreshold = this.session.readRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD);
@@ -1015,7 +1014,6 @@ export class PKOM4Accessory {
   	
   	// Those readonly registers are skipped to ensure persistance under simulation mode
   	if (!this.simulate || !this.inited) {
-  		this.pkomManualMode = (this.pkomUserSpeedLevel != PKOM_SPEED_LEVEL_AUTO);
   		this.pkomAutoSpeedLevel = this.session.readRegister(MODBUS_ADDR_AUTO_SPEED_LEVEL);
 		this.pkomActualSpeedLevel = this.session.readRegister(MODBUS_ADDR_ACTUAL_SPEED_LEVEL);
 		this.pkomCurrentlyWaterHeating = this.session.readRegister(MODBUS_ADDR_BOILER_HEATING);
@@ -1225,7 +1223,7 @@ export class PKOM4Accessory {
 	// PKOM 'Mode' is used to manage services activation. 'Unsupported Mode' is a transient situation when going through multiple steps
 	//  (e.g turning off fan then water then conditioner to turn all off). In this case register writing is postponed to next valid configuration.
 	// It means in particular that specific features such as anti-frozen, anti-legionel, bypass, etc are always active.
-  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : this.pkomActualSpeedLevel;//PKOM_SPEED_LEVEL_AUTO;	Auto mode is documented but refused by Modbus 
+  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : this.pkomUserSpeedLevel);//PKOM_SPEED_LEVEL_AUTO;	Auto mode is documented but refused by Modbus 
 	let pkomMode = PKOM_MODE_UNSUPPORTED;
 	
 	if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
