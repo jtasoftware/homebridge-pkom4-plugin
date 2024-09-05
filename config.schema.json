@@ -24,6 +24,21 @@
         "required": true,
         "description": "Report any data from PKOM4 but won't send any command (used for debugging)"
       },
+      "simulatedOptions": {
+        "title": "Simulated options",
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 3,
+        "required": true,
+        "default": "3",
+        "oneOf": [
+          { "title": "PKOM Trend", "enum": ["0"] },
+          { "title": "PKOM Classic", "enum": ["1"] },
+          { "title": "PKOM Classic + humidity sensor", "enum": ["2"] },
+          { "title": "PKOM Classic + humidity & CO2 sensors", "enum": ["3"] }
+        ],
+        "description": "Select the model & options matching your needs. When wired to PKOM installed options are detected automatically."
+      },
       "modbusDebugLevel": {
         "title": "Modbus logs level",
         "type": "integer",

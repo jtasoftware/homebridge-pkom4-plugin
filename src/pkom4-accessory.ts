@@ -104,6 +104,8 @@ export class PKOM4Accessory {
   private modbusDebugLevel = 0;
   private modbusSaveRefcon = 0;
   private modbusLoadTimestamp = 0.0;
+  private simulatedSensors = 0;
+  private simulatedOptions = 0;
   
   private pkomMode = 0;
   private pkomUserSpeedLevel = 0;
@@ -185,14 +187,10 @@ export class PKOM4Accessory {
 	this.modbusDebugLevel = platform.config["modbusDebugLevel"];
 	this.dryRegion = false;
 	this.inited = false;
-	
-	// Dioxide & humidity sensor are optional parts always displayed under simulation mode
-	// TBD: add UI to allow user selecting model and option when simulating
-	if (this.simulate) {
-		this.pkomHasDioxideSensor = true;
-		this.pkomHasHumiditySensor = true;
-		this.pkomHasWaterHeater = true;
-	}
+
+	let options = platform.config["simulatedOptions"];
+	this.simulatedSensors = (options >= 2 ? options : 0);
+	this.simulatedOptions = (options >= 1 ? 3 : 0);
 	
 	// Restore or create services
 	this.platform = platform;
@@ -559,6 +557,7 @@ export class PKOM4Accessory {
     // Update pre-computed characteristics    
     this.fanSpeedLevelChanged();
 	this.purifierActivationChanged();
+	this.serviceAvailabilityChanged();
     this.didChangeModbusStatus();
     this.platform.log.info("Accessories characteristics init done");
 
@@ -878,6 +877,44 @@ export class PKOM4Accessory {
   	this.didChangeModbusStatus();
   }
   
+  serviceAvailabilityChanged() {
+	let heaterService = this.accessory.getService(PKOM_BOILER_NAME);
+	if (this.pkomHasWaterHeater && !heaterService) {
+		this.accessory.addService(this.heaterService);
+		this.platform.log.info("Water heater is now available");
+	} else if (!this.pkomHasWaterHeater && heaterService) {
+		this.accessory.removeService(heaterService);
+		this.platform.log.info("Water heater is no more available");
+	}
+	
+	let purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier);
+	if (this.pkomHasDioxideSensor && !purifierService) {
+		this.accessory.addService(this.purifierService);
+		this.platform.log.info("Air purifier is now available");
+	} else if (!this.pkomHasDioxideSensor && purifierService) {
+		this.accessory.removeService(purifierService);
+		this.platform.log.info("Air purifier is no more available");
+	}
+	
+	let sensorService = this.accessory.getService(this.platform.api.hap.Service.AirQualitySensor);
+	if (this.pkomHasDioxideSensor && !sensorService) {
+		this.accessory.addService(this.sensorService);
+		this.platform.log.info("Air quality sensor is now available");
+	} else if (!this.pkomHasDioxideSensor && sensorService) {
+		this.accessory.removeService(sensorService);
+		this.platform.log.info("Air quality sensor is no more available");
+	}
+	
+	let dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier);
+	if (this.pkomHasHumiditySensor && !dehumidifierService) {
+		this.accessory.addService(this.dehumidifierService);
+		this.platform.log.info("Dehumidifier is now available");
+	} else if (!this.pkomHasHumiditySensor && dehumidifierService) {
+		this.accessory.removeService(dehumidifierService);
+		this.platform.log.info("Dehumidifier is no more available");
+	}
+  }
+  
   startPollingModbusStatus() {
 	let timer = setInterval(() => {
     	void (async () => {
@@ -892,41 +929,7 @@ export class PKOM4Accessory {
 			}
 
 			// Update available services
-			let heaterService = this.accessory.getService(PKOM_BOILER_NAME);
-			if (this.pkomHasWaterHeater && !heaterService) {
-				this.accessory.addService(this.heaterService);
-				this.platform.log.info("Water heater is now available");
-			} else if (!this.pkomHasWaterHeater && heaterService) {
-				this.accessory.removeService(heaterService);
-				this.platform.log.info("Water heater is no more available");
-			}
-			
-			let purifierService = this.accessory.getService(this.platform.api.hap.Service.AirPurifier);
-			if (this.pkomHasDioxideSensor && !purifierService) {
-				this.accessory.addService(this.purifierService);
-				this.platform.log.info("Air purifier is now available");
-			} else if (!this.pkomHasDioxideSensor && purifierService) {
-				this.accessory.removeService(purifierService);
-				this.platform.log.info("Air purifier is no more available");
-			}
-			
-			let sensorService = this.accessory.getService(this.platform.api.hap.Service.AirQualitySensor);
-			if (this.pkomHasDioxideSensor && !sensorService) {
-				this.accessory.addService(this.sensorService);
-				this.platform.log.info("Air quality sensor is now available");
-			} else if (!this.pkomHasDioxideSensor && sensorService) {
-				this.accessory.removeService(sensorService);
-				this.platform.log.info("Air quality sensor is no more available");
-			}
-			
-			let dehumidifierService = this.accessory.getService(this.platform.api.hap.Service.HumidifierDehumidifier);
-			if (this.pkomHasHumiditySensor && !dehumidifierService) {
-				this.accessory.addService(this.dehumidifierService);
-				this.platform.log.info("Dehumidifier is now available");
-			} else if (!this.pkomHasHumiditySensor && dehumidifierService) {
-				this.accessory.removeService(dehumidifierService);
-				this.platform.log.info("Dehumidifier is no more available");
-			}
+			this.serviceAvailabilityChanged();
 	
 			// Update implied characteristics
 			this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT))
@@ -1048,8 +1051,8 @@ export class PKOM4Accessory {
   	let dehumidifierActive = this.session.readRegister(MODBUS_ADDR_HUMID_ENABLED);
   	let purifierActive = this.session.readRegister(MODBUS_ADDR_DIOXIDE_ENABLED);
 	let boilerEnergy = this.session.readRegister(MODBUS_ADDR_BOILER_ENERGY);
-	let sensorType = this.session.readRegister(MODBUS_ADDR_HARDWARE_SENSORS);
-	let options = this.session.readRegister(MODBUS_ADDR_HARDWARE_OPTIONS);
+	let sensorType = (this.simulate ? this.simulatedSensors : this.session.readRegister(MODBUS_ADDR_HARDWARE_SENSORS));
+	let options = (this.simulate ? this.simulatedOptions : this.session.readRegister(MODBUS_ADDR_HARDWARE_OPTIONS));
   	
 	// Following status are computed
 	this.fanCurrentSpeedLevel = (this.pkomActualSpeedLevel - 1);
@@ -1151,8 +1154,6 @@ export class PKOM4Accessory {
   	this.dehumidifierTargetState = (this.dehumidifierManualMode ? this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.DEHUMIDIFIER : this.platform.api.hap.Characteristic.TargetHumidifierDehumidifierState.AUTO);
 
 	// Fetch hardware infos
-	this.pkomHasWaterHeater = (boilerEnergy > 0);
-
 	switch (sensorType) {
 		case 0:
 			this.pkomHasDioxideSensor = false;
@@ -1190,6 +1191,9 @@ export class PKOM4Accessory {
 			this.pkomHasAirResistance = true;
 			break;
 	}
+	
+	// To be tested: use pkomHasWaterResistance even without simulation
+	this.pkomHasWaterHeater = (this.simulate ? this.pkomHasWaterResistance: boilerEnergy > 0);
 
 	// Update air quality status
   	this.purifierDioxideChanged();
