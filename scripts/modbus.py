@@ -234,7 +234,7 @@ if (verb == "get" or verb == "set"):
 		syslog.syslog(syslog.LOG_INFO, "Error: Bad data format, double check modbus decimal or signed setup")
 		sys.exit("(format error in response)")
 	except minimalmodbus.IllegalRequestError:
-		syslog.syslog(syslog.LOG_INFO, "Error: Illegal address or data, double check modbus address or value")
+		syslog.syslog(syslog.LOG_INFO, "Error: Illegal address or data, double check modbus documentation")
 		sys.exit("(illegal address or data)")
 	except Exception as error:
 		syslog.syslog(syslog.LOG_INFO, "Error: Generic exception catched " + str(error))

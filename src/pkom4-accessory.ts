@@ -113,9 +113,9 @@ export class PKOM4Accessory {
   private pkomCurrentlyCooling = false;
   private pkomCurrentlyHeating = false;
   private pkomCurrentlyWaterHeating = false;
-  private pkomHasWaterHeater = true;
-  private pkomHasDioxideSensor = true;
-  private pkomHasHumiditySensor = true;
+  private pkomHasWaterHeater = false;
+  private pkomHasDioxideSensor = false;
+  private pkomHasHumiditySensor = false;
   private pkomHasWaterResistance = true;
   private pkomHasAirResistance = true;
   private pkomPurifierWaterHeating = false;
@@ -186,6 +186,15 @@ export class PKOM4Accessory {
 	this.dryRegion = false;
 	this.inited = false;
 	
+	// Dioxide & humidity sensor are optional parts always displayed under simulation mode
+	// TBD: add UI to allow user selecting model and option when simulating
+	if (this.simulate) {
+		this.pkomHasDioxideSensor = true;
+		this.pkomHasHumiditySensor = true;
+		this.pkomHasWaterHeater = true;
+	}
+	
+	// Restore or create services
 	this.platform = platform;
 	this.platform.log.info("Platform config: " + (this.simulate && this.readOnly ? "simulate, read-only" : (this.simulate ? "simulate" : (this.readOnly ? "read-only" : "none"))));
 	
@@ -996,7 +1005,7 @@ export class PKOM4Accessory {
 
   	// Readwrite register are persisted by session under simulation mode
 	this.pkomMode = this.session.readRegister(MODBUS_ADDR_MODE);
-  	this.pkomEcoTime = (this.session.readRegister(MODBUS_ADDR_COOL_ENABLED) != PKOM_COOLING_ECO);//this.session.readRegister(MODBUS_ADDR_ECO_TIME);
+  	this.pkomEcoTime = (this.session.readRegister(MODBUS_ADDR_COOL_ENABLED) == PKOM_COOLING_ECO);//this.session.readRegister(MODBUS_ADDR_ECO_TIME);
 	this.pkomUserSpeedLevel = this.session.readRegister(MODBUS_ADDR_USER_SPEED_LEVEL);
 	this.purifierDioxideThreshold = this.session.readRegister(MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD);
 	this.dehumidifierHumidityThreshold = this.session.readRegister(MODBUS_ADDR_MAX_HUMID_THRESHOLD);
@@ -1223,7 +1232,7 @@ export class PKOM4Accessory {
 	// PKOM 'Mode' is used to manage services activation. 'Unsupported Mode' is a transient situation when going through multiple steps
 	//  (e.g turning off fan then water then conditioner to turn all off). In this case register writing is postponed to next valid configuration.
 	// It means in particular that specific features such as anti-frozen, anti-legionel, bypass, etc are always active.
-  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : this.pkomUserSpeedLevel);//PKOM_SPEED_LEVEL_AUTO;	Auto mode is documented but refused by Modbus 
+  	let pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : this.pkomUserSpeedLevel;//PKOM_SPEED_LEVEL_AUTO;	Auto mode is documented but refused by Modbus 
 	let pkomMode = PKOM_MODE_UNSUPPORTED;
 	
 	if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
