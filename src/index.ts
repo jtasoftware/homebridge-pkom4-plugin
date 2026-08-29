@@ -1,7 +1,7 @@
 import { API } from 'homebridge';
-import { PLATFORM_NAME } from './settings';
-import { PichlerPlatform } from './pichler-platform';
+import { PichlerPlatform } from './pichler-platform.js';
+import { PLATFORM_NAME } from './settings.js';
 
-export = (api: API) => {
+export default (api: API) => {
   api.registerPlatform(PLATFORM_NAME, PichlerPlatform);
 };
