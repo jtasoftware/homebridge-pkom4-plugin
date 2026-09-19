@@ -1243,21 +1243,21 @@ export class PKOM4Accessory {
 		const pkomUserSpeedLevel = (this.simulate || this.fanManualMode || this.purifierManualMode || this.dehumidifierManualMode) ? this.fanCurrentSpeedLevel + 1 : this.pkomUserSpeedLevel;//PKOM_SPEED_LEVEL_AUTO;	Auto mode is documented but refused by Modbus 
 		let pkomMode = PKOM_MODE_UNSUPPORTED;
 		
-		if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
+		if (!this.fanSwitchedOn && (!this.waterHeaterActive || !this.pkomHasWaterHeater) && !this.conditionerActive) {
 			pkomMode = PKOM_MODE_OFF;		// All is off
-		} else if (!this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
+		} else if (!this.fanSwitchedOn && this.waterHeaterActive && this.pkomHasWaterHeater && !this.conditionerActive) {
 			pkomMode = PKOM_MODE_BOILER;	// Water only
 // 	} else if (this.fanSwitchedOn && !this.waterHeaterActive && this.conditionerActive) {
 //			pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well - no documented way to do this (currently transient)
-		} else if (this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
+		} else if (this.fanSwitchedOn && (!this.waterHeaterActive || !this.pkomHasWaterHeater) && !this.conditionerActive) {
 			pkomMode = PKOM_MODE_HOLIDAYS;	// Fan only, need to specify duration
-		} else if (this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
+		} else if (this.fanSwitchedOn && this.waterHeaterActive && this.pkomHasWaterHeater && !this.conditionerActive) {
 			pkomMode = PKOM_MODE_SUMMER;	// No conditioner, need to stop cooling as well
-		} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT) {
+		} else if (this.fanSwitchedOn && (this.waterHeaterActive || !this.pkomHasWaterHeater) && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.HEAT) {
 			pkomMode = PKOM_MODE_WINTER;	// Forced heating
-		} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.COOL) {
+		} else if (this.fanSwitchedOn && (this.waterHeaterActive || !this.pkomHasWaterHeater) && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.COOL) {
 			pkomMode = PKOM_MODE_SUMMER;	// Forced cooling
-		} else if (this.fanSwitchedOn && this.waterHeaterActive && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO) {
+		} else if (this.fanSwitchedOn && (this.waterHeaterActive || !this.pkomHasWaterHeater) && this.conditionerActive && this.conditionerTargetState == this.platform.api.hap.Characteristic.TargetHeaterCoolerState.AUTO) {
 			pkomMode = PKOM_MODE_AUTO;		// All is on with auto mode
 		}
 		
