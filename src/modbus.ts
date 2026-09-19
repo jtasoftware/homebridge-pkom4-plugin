@@ -209,7 +209,7 @@ export class ModbusSession {
 	}
 
 	// Use Schell command to create python virtual env & install modbus module
-	let promise = await this.callSchellScript("install.sh", this.pythonVirtualEnv)
+	const promise = await this.callSchellScript("install.sh", this.pythonVirtualEnv)
 		.then(() => {		
 		 	this.installed = true;
 		 	if (this.debugLevel > 1) {
@@ -229,7 +229,7 @@ export class ModbusSession {
 
 	this.ongoing = true;
   	
-	for (let address of this.registersAddress) {
+	for (const address of this.registersAddress) {
 		this.registersModified[address] = false;
 	}
 	
@@ -239,7 +239,7 @@ export class ModbusSession {
 	// that was not sent. It will also behave as a slave considering any concurent change
 	// that occurred. From that point, and until end() call will turn into a master
 	// for pending changes (will overwrite concurent changes).
-	let promise = await this.callPython(this.pythonVirtualEnv, "modbus.py", "get", this.registersValue)
+	const promise = await this.callPython(this.pythonVirtualEnv, "modbus.py", "get", this.registersValue)
 		.then((result: Record<number, any>) => {
      		this.registersValue = result;
      		if (this.debugLevel > 1) {
@@ -261,7 +261,7 @@ export class ModbusSession {
 	//	not conflicting registers. Won't manage real conflicts however.
 	this.registersCache = {};
 	
-  	for (let address of this.registersAddress) {
+  	for (const address of this.registersAddress) {
 		if (this.registersModified[address] && !this.readOnly) {
 			this.registersCache[address] = this.registersValue[address];
 		}
@@ -276,7 +276,7 @@ export class ModbusSession {
  	this.ongoing = false;
 
 	// Use Python command to write modified registers
-	let promise = await this.callPython(this.pythonVirtualEnv, "modbus.py", "set", this.registersCache)
+	const promise = await this.callPython(this.pythonVirtualEnv, "modbus.py", "set", this.registersCache)
 		.catch((error: Error) => {
 			this.log.info("Error setting modbus registers %s", error.message);
 		});
@@ -302,7 +302,7 @@ export class ModbusSession {
 					const error = new Error(errorMsg);
 					failureCallback(error);
 				}
-			})
+			});
 		}
 		catch(error) {
 			failureCallback(error);
@@ -335,7 +335,7 @@ export class ModbusSession {
 					const error = new Error(errorMsg);
 					failureCallback(error);
 				}
-			})
+			});
 		}
 		catch(error) {
 			failureCallback(error);
