@@ -119,3 +119,7 @@ dist
 .yarn/build-state.yml
 .pnp.*
 .DS_Store
+/scripts/bin
+/scripts/lib
+scripts/pyvenv.cfg
+package-lock.json
