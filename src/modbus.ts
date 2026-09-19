@@ -229,7 +229,7 @@ export class ModbusSession {
 
 	this.ongoing = true;
   	
-	for (const address of this.registersAddress) {
+	for (let address of this.registersAddress) {
 		this.registersModified[address] = false;
 	}
 	
@@ -261,7 +261,7 @@ export class ModbusSession {
 	//	not conflicting registers. Won't manage real conflicts however.
 	this.registersCache = {};
 	
-  	for (const address of this.registersAddress) {
+  	for (let address of this.registersAddress) {
 		if (this.registersModified[address] && !this.readOnly) {
 			this.registersCache[address] = this.registersValue[address];
 		}
