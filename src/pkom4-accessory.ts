@@ -244,7 +244,7 @@ export class PKOM4Accessory {
 	}
 
 	async initAccessories() {	
-		this.platform.log.info("Initial Modbus status loadingÉ");
+		this.platform.log.info("Initial Modbus status loadingâ€¦");
 	
 		await this.loadModbusStatus();
 			
@@ -255,7 +255,7 @@ export class PKOM4Accessory {
 		this.platform.log.info("Available PKOM options: %s", options);
 		this.platform.log.info("Initial Modbus status load done");
 		
-		this.platform.log.info("Accessories characteristics initializingÉ");
+		this.platform.log.info("Accessories characteristics initializingâ€¦");
 		this.willChangeModbusStatus();
 		
 		this.informationService.updateCharacteristic(this.platform.api.hap.Characteristic.Model, (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT))
@@ -454,7 +454,7 @@ export class PKOM4Accessory {
 		this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature)
 			.on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 			this.willObserveModbusStatus();
-			this.platform.log.debug("Air conditioner temperature %f ¡C", this.conditionerCurrentTemperature.toFixed(1));
+			this.platform.log.debug("Air conditioner temperature %f Â°C", this.conditionerCurrentTemperature.toFixed(1));
 			callback(undefined, this.conditionerCurrentTemperature);
 			});
 		this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.HeatingThresholdTemperature)
@@ -462,14 +462,14 @@ export class PKOM4Accessory {
 			.setProps({ minValue: PKOM_MIN_HEAT_TEMP, maxValue: PKOM_MAX_HEAT_TEMP, minStep: PKOM_TEMP_STEP })
 			.on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 			this.willObserveModbusStatus();
-			this.platform.log.debug("Air conditioner heating threshold is %f ¡C", this.conditionerHeatingThreshold);
+			this.platform.log.debug("Air conditioner heating threshold is %f Â°C", this.conditionerHeatingThreshold);
 			callback(undefined, this.conditionerHeatingThreshold);
 			})
 			.on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 			this.conditionerHeatingThreshold = value as number;
 			this.conditionerThresholdChanged();
 		
-			this.platform.log.info("Air conditioner heating threshold set to %f ¡C", this.conditionerHeatingThreshold);
+			this.platform.log.info("Air conditioner heating threshold set to %f Â°C", this.conditionerHeatingThreshold);
 			callback();
 			});
 		this.conditionerService.getCharacteristic(this.platform.api.hap.Characteristic.CoolingThresholdTemperature)
@@ -477,14 +477,14 @@ export class PKOM4Accessory {
 			.setProps({ minValue: PKOM_MIN_COOL_TEMP, maxValue: PKOM_MAX_COOL_TEMP, minStep: PKOM_TEMP_STEP })
 			.on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 			this.willObserveModbusStatus();
-			this.platform.log.debug("Air conditioner cooling threshold is %f ¡C", this.conditionerCoolingThreshold);
+			this.platform.log.debug("Air conditioner cooling threshold is %f Â°C", this.conditionerCoolingThreshold);
 			callback(undefined, this.conditionerCoolingThreshold);
 			})
 			.on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 			this.conditionerCoolingThreshold = value as number;
 			this.conditionerThresholdChanged();
 		
-			this.platform.log.info("Air conditioner cooling threshold set to %f ¡C", this.conditionerCoolingThreshold);
+			this.platform.log.info("Air conditioner cooling threshold set to %f Â°C", this.conditionerCoolingThreshold);
 			callback();
 			});
 	
@@ -534,7 +534,7 @@ export class PKOM4Accessory {
 		this.heaterService.getCharacteristic(this.platform.api.hap.Characteristic.CurrentTemperature)
 			.on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 				this.willObserveModbusStatus();
-				this.platform.log.debug("Water heater temperature is %f ¡C", this.waterHeaterCurrentTemperature.toFixed(1));
+				this.platform.log.debug("Water heater temperature is %f Â°C", this.waterHeaterCurrentTemperature.toFixed(1));
 				callback(undefined, this.waterHeaterCurrentTemperature);
 			});
 		// Avoid generating an exception by changing max first, then current value, then min
@@ -544,14 +544,14 @@ export class PKOM4Accessory {
 			.setProps({ minValue: PKOM_MIN_BOILER_TEMP, minStep: PKOM_TEMP_STEP })
 			.on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
 				this.willObserveModbusStatus();
-				this.platform.log.debug("Water heater threshold is %f ¡C", this.waterHeaterHeatingThreshold);
+				this.platform.log.debug("Water heater threshold is %f Â°C", this.waterHeaterHeatingThreshold);
 				callback(undefined, this.waterHeaterHeatingThreshold);
 			})
 			.on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
 				this.waterHeaterHeatingThreshold = value as number;
 				this.waterHeaterTargetStateChanged();
 			
-				this.platform.log.info("Water heater threshold set to %f ¡C", this.waterHeaterHeatingThreshold);
+				this.platform.log.info("Water heater threshold set to %f Â°C", this.waterHeaterHeatingThreshold);
 				callback();
 			});
 		
@@ -886,7 +886,6 @@ export class PKOM4Accessory {
 			this.accessory.addService(this.heaterService);
 			this.platform.log.info("Water heater is now available");
 		} else if (!this.pkomHasWaterHeater && heaterService) {
-			this.waterHeaterActive = false;
 			this.accessory.removeService(heaterService);					
 			this.platform.log.info("Water heater is no more available");
 		}
@@ -922,7 +921,7 @@ export class PKOM4Accessory {
 	startPollingModbusStatus() {
 		setInterval(() => {
 			void (async () => {
-				this.platform.log.info("Modbus recurrent checking ongoingÉ");
+				this.platform.log.info("Modbus recurrent checking ongoingâ€¦");
 			
 				// Load new register values
 				await this.loadModbusStatus(this.simulate);		
@@ -972,7 +971,7 @@ export class PKOM4Accessory {
 		// No need for sync update, we're simply accelerating refresh rate
 		// Update timestamp before async call to avoid massive parallel updates
 		if ((Date.now() - this.modbusLoadTimestamp) > MODBUS_INTERACTIVE_UPDATE_PERIOD) {
-		this.platform.log.info("Modbus interactive checking ongoingÉ");
+		this.platform.log.info("Modbus interactive checking ongoingâ€¦");
 		this.modbusLoadTimestamp = Date.now();
 			this.loadModbusStatus();
 		}
@@ -1340,7 +1339,7 @@ export class PKOM4Accessory {
 			
 		this.purifierDioxideLevel = Math.min(Math.max(this.purifierDioxideLevel + dioxideIncrement, 450), 4999);
 		this.dehumidifierCurrentHumidity =	Math.min(Math.max(this.dehumidifierCurrentHumidity + humidityIncrement, 10), 89);
-		this.platform.log.info("Simulation - air quality modulating (Æh:%d, Æd:%d)", humidityIncrement.toFixed(2), dioxideIncrement);
+		this.platform.log.info("Simulation - air quality modulating (âˆ†h:%d, âˆ†d:%d)", humidityIncrement.toFixed(2), dioxideIncrement);
 	
 		if (this.purifierActive && this.purifierDioxideLevel > this.purifierDioxideThreshold && this.pkomUserSpeedLevel < PKOM_PURIFIER_LEVEL) {
 			this.pkomUserSpeedLevel = PKOM_PURIFIER_LEVEL;
@@ -1371,7 +1370,7 @@ export class PKOM4Accessory {
 				this.pkomCurrentlyWaterHeating = false;
 				this.platform.log.info("Simulation - stopping water heating");
 			} else {
-				this.platform.log.debug("Simulation - water:%d of %d ¡C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+				this.platform.log.debug("Simulation - water:%d of %d Â°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 			}
 		} else {
 			this.waterHeaterCurrentTemperature = this.waterHeaterCurrentTemperature - 0.1;
@@ -1379,7 +1378,7 @@ export class PKOM4Accessory {
 				this.pkomCurrentlyWaterHeating = true;
 				this.platform.log.info("Simulation - starting water heating");
 			} else {
-				this.platform.log.debug("Simulation - water:%d of %d ¡C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
+				this.platform.log.debug("Simulation - water:%d of %d Â°C", this.waterHeaterCurrentTemperature.toFixed(2), this.waterHeaterHeatingThreshold);
 			}
 		}
 		
