@@ -10,8 +10,15 @@ npm version prerelease --preid beta
 npm version patch
 ```
 
+## To submit a beta:
+```
+npm login
+npm publish --tag=beta
+```
+
 ## To submit a build:
 ```
+npm login
 npm publish
 ```
 
