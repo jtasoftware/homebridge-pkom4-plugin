@@ -5,51 +5,45 @@
   "headerDisplay": "Select one optional option to customize plugin behaviour",
   "schema": {
     "type": "object",
+    "required": ["name", "simulatedOptions", "modbusDebugLevel"],
     "properties": {
       "name": {
         "title": "Accessory name",
         "type": "string",
-        "required": true,
         "default": "PKOM 4"
       },
       "simulate": {
         "title": "Simulation mode",
         "type": "boolean",
-        "required": true,
+        "default": false,
         "description": "Simulate PKOM4 behaviour without any actual connected device (used for demos)"
       },
       "readOnly": {
         "title": "Read only mode",
         "type": "boolean",
-        "required": true,
+        "default": false,
         "description": "Report any data from PKOM4 but won't send any command (used for debugging)"
       },
       "simulatedOptions": {
         "title": "Simulated options",
         "type": "integer",
-        "minimum": 0,
-        "maximum": 3,
-        "required": true,
-        "default": "3",
+        "default": 3,
         "oneOf": [
-          { "title": "PKOM Trend", "enum": ["0"] },
-          { "title": "PKOM Classic", "enum": ["1"] },
-          { "title": "PKOM Classic + humidity sensor", "enum": ["2"] },
-          { "title": "PKOM Classic + humidity & CO2 sensors", "enum": ["3"] }
+          { "title": "PKOM Trend", "enum": [0] },
+          { "title": "PKOM Classic", "enum": [1] },
+          { "title": "PKOM Classic + humidity sensor", "enum": [2] },
+          { "title": "PKOM Classic + humidity & CO2 sensors", "enum": [3] }
         ],
         "description": "Select the model & options matching your needs. When wired to PKOM installed options are detected automatically."
       },
       "modbusDebugLevel": {
         "title": "Modbus logs level",
         "type": "integer",
-        "minimum": 0,
-        "maximum": 2,
-        "required": true,
-        "default": "0",
+        "default": 0,
         "oneOf": [
-          { "title": "None", "enum": ["0"] },
-          { "title": "Low", "enum": ["1"] },
-          { "title": "High", "enum": ["2"] }
+          { "title": "None", "enum": [0] },
+          { "title": "Low", "enum": [1] },
+          { "title": "High", "enum": [2] }
         ],
         "description": "Define the verbosity of modbus debug logs"
       }
