@@ -886,7 +886,8 @@ export class PKOM4Accessory {
 			this.accessory.addService(this.heaterService);
 			this.platform.log.info("Water heater is now available");
 		} else if (!this.pkomHasWaterHeater && heaterService) {
-			this.accessory.removeService(heaterService);
+			this.waterHeaterActive = false;
+			this.accessory.removeService(heaterService);					
 			this.platform.log.info("Water heater is no more available");
 		}
 		
@@ -1196,7 +1197,7 @@ export class PKOM4Accessory {
 		}
 		
 		// To be tested: use pkomHasWaterResistance even without simulation
-		this.pkomHasWaterHeater = (this.simulate ? this.pkomHasWaterResistance: boilerEnergy > 0);
+		this.pkomHasWaterHeater = (this.simulate ? this.pkomHasWaterResistance : boilerEnergy > 0);
 		
 		// Update air quality status
 		this.purifierDioxideChanged();
@@ -1231,9 +1232,9 @@ export class PKOM4Accessory {
 		
 		// Air heating temperature always reflects eco/normal period
 		if (this.pkomEcoTime) {
-				this.session.writeRegister(MODBUS_ADDR_ECO_THRESHOLD, this.conditionerHeatingThreshold);
+			this.session.writeRegister(MODBUS_ADDR_ECO_THRESHOLD, this.conditionerHeatingThreshold);
 		} else {
-				this.session.writeRegister(MODBUS_ADDR_NORMAL_THRESHOLD, this.conditionerHeatingThreshold);
+			this.session.writeRegister(MODBUS_ADDR_NORMAL_THRESHOLD, this.conditionerHeatingThreshold);
 		}
 		
 		// PKOM 'Mode' is used to manage services activation. 'Unsupported Mode' is a transient situation when going through multiple steps
@@ -1243,9 +1244,9 @@ export class PKOM4Accessory {
 		let pkomMode = PKOM_MODE_UNSUPPORTED;
 		
 		if (!this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
-				pkomMode = PKOM_MODE_OFF;		// All is off
+			pkomMode = PKOM_MODE_OFF;		// All is off
 		} else if (!this.fanSwitchedOn && this.waterHeaterActive && !this.conditionerActive) {
-				pkomMode = PKOM_MODE_BOILER;	// Water only
+			pkomMode = PKOM_MODE_BOILER;	// Water only
 // 	} else if (this.fanSwitchedOn && !this.waterHeaterActive && this.conditionerActive) {
 //			pkomMode = PKOM_MODE_AUTO;		// No Water, need to stop boiler pump as well - no documented way to do this (currently transient)
 		} else if (this.fanSwitchedOn && !this.waterHeaterActive && !this.conditionerActive) {
