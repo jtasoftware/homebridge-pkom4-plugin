@@ -37,12 +37,13 @@ export const MODBUS_ADDR_FIRMWARE_VERSION = 36;		// FIXED, RO
 export const MODBUS_ADDR_HARDWARE_OPTIONS = 149;	// INT, RO (Temp sensor, Heat resistance)
 export const MODBUS_ADDR_HARDWARE_SENSORS = 16;		// INT, RO (CO2 & Hum sensors)
 export const MODBUS_ADDR_VCM_POWER = 26;			// FIXED, RO (W)
-export const MODBUS_ADDR_HEAT_POWER = 37;			// INT, RO (W)
-export const MODBUS_ADDR_ES_PUMP_POWER = 24;		// FIXED, RO (W)
-export const MODBUS_ADDR_CR_PUMP_POWER = 25;		// FIXED, RO (W)
-export const MODBUS_ADDR_VCM_ENERGY = 29;			// INT, RO (kWh)
-export const MODBUS_ADDR_HEAT_ENERGY = 64;			// INT, RO (kWh)
+export const MODBUS_ADDR_AIR_PUMP_POWER = 25;		// FIXED, RO (W)
+export const MODBUS_ADDR_AIR_RESIST_POWER = 37;		// INT, RO (W)
+export const MODBUS_ADDR_WATER_PUMP_POWER = 24;		// FIXED, RO (W)
+// export const MODBUS_ADDR_WATER_RESIST_POWER = 0;	// Not documented
+export const MODBUS_ADDR_FAN_ENERGY = 29;			// INT, RO (kWh)
 export const MODBUS_ADDR_COOL_ENERGY = 27;			// INT, RO (kWh)
+export const MODBUS_ADDR_HEAT_ENERGY = 64;			// INT, RO (kWh)
 export const MODBUS_ADDR_GLOBAL_ENERGY = 65;		// INT, RO (kWh)
 export const MODBUS_ADDR_OUTDOOR_TEMP = 66;			// FIXED, RO
 
@@ -62,12 +63,12 @@ const PKOM_DEMO_DIOXIDE_THRESHOLD = 1000.0;
 const PKOM_DEMO_HUMID_THRESHOLD = 70.0;
 const PKOM_DEMO_FILTER_DURATION = 2208.0;	// 8 days remaining (over 2400 hours)
 const PKOM_DEMO_VCM_POWER = 60.0;
-const PKOM_DEMO_HEAT_POWER = 1200;
+const PKOM_DEMO_RESIST_POWER = 1000;
 const PKOM_DEMO_PUMP_POWER = 150.0;
-const PKOM_DEMO_BOILER_ENERGY = 1;
-const PKOM_DEMO_VCM_ENERGY = 10;
-const PKOM_DEMO_HEAT_ENERGY = 100;
+const PKOM_DEMO_FAN_ENERGY = 10;
 const PKOM_DEMO_COOL_ENERGY = 25;
+const PKOM_DEMO_HEAT_ENERGY = 100;
+const PKOM_DEMO_BOILER_ENERGY = 1;
 const PKOM_DEMO_GLOBAL_ENERGY = 136;
 const PKOM_DEMO_SENSORS = 3;
 const PKOM_DEMO_OPTIONS = 4;
@@ -142,10 +143,10 @@ export class ModbusSession {
 			MODBUS_ADDR_HARDWARE_OPTIONS,
 			MODBUS_ADDR_HARDWARE_SENSORS,
 			MODBUS_ADDR_VCM_POWER,
-			MODBUS_ADDR_HEAT_POWER,
-			MODBUS_ADDR_ES_PUMP_POWER,
-			MODBUS_ADDR_CR_PUMP_POWER,
-			MODBUS_ADDR_VCM_ENERGY,
+			MODBUS_ADDR_AIR_RESIST_POWER,
+			MODBUS_ADDR_WATER_PUMP_POWER,
+			MODBUS_ADDR_AIR_PUMP_POWER,
+			MODBUS_ADDR_FAN_ENERGY,
 			MODBUS_ADDR_HEAT_ENERGY,
 			MODBUS_ADDR_COOL_ENERGY,
 			MODBUS_ADDR_GLOBAL_ENERGY,
@@ -232,10 +233,10 @@ export class ModbusSession {
 		this.registersValue[MODBUS_ADDR_HARDWARE_SENSORS] = (demoMode ? PKOM_DEMO_SENSORS : 0);
 		this.registersValue[MODBUS_ADDR_HARDWARE_OPTIONS] = (demoMode ? PKOM_DEMO_OPTIONS : 0);
 		this.registersValue[MODBUS_ADDR_VCM_POWER] = (demoMode ? PKOM_DEMO_VCM_POWER : 0);
-		this.registersValue[MODBUS_ADDR_HEAT_POWER] = (demoMode ? PKOM_DEMO_HEAT_POWER : 0);
-		this.registersValue[MODBUS_ADDR_ES_PUMP_POWER] = (demoMode ? PKOM_DEMO_PUMP_POWER : 0);
-		this.registersValue[MODBUS_ADDR_CR_PUMP_POWER] = (demoMode ? PKOM_DEMO_PUMP_POWER : 0);
-		this.registersValue[MODBUS_ADDR_VCM_ENERGY] = (demoMode ? PKOM_DEMO_VCM_ENERGY : 0);
+		this.registersValue[MODBUS_ADDR_AIR_RESIST_POWER] = (demoMode ? PKOM_DEMO_RESIST_POWER : 0);
+		this.registersValue[MODBUS_ADDR_WATER_PUMP_POWER] = (demoMode ? PKOM_DEMO_PUMP_POWER : 0);
+		this.registersValue[MODBUS_ADDR_AIR_PUMP_POWER] = (demoMode ? PKOM_DEMO_PUMP_POWER : 0);
+		this.registersValue[MODBUS_ADDR_FAN_ENERGY] = (demoMode ? PKOM_DEMO_FAN_ENERGY : 0);
 		this.registersValue[MODBUS_ADDR_HEAT_ENERGY] = (demoMode ? PKOM_DEMO_HEAT_ENERGY : 0);
 		this.registersValue[MODBUS_ADDR_COOL_ENERGY] = (demoMode ? PKOM_DEMO_COOL_ENERGY : 0);
 		this.registersValue[MODBUS_ADDR_GLOBAL_ENERGY] = (demoMode ? PKOM_DEMO_GLOBAL_ENERGY : 0);
