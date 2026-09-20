@@ -7,7 +7,7 @@
 #
 
 if [[ $# -ge 1 ]] && [[ -n $1 ]]; then
-	virtualEnvFolder=$1
+	virtualEnvFolder="$1"
 	/bin/echo "Installing into destination $virtualEnvFolder"
 else
 	isDarwinOS=$(/usr/bin/uname -a | /usr/bin/grep -c "Darwin")
