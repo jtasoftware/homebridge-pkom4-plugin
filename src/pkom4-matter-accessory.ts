@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-this-alias */
 import { PichlerPlatform } from "./pichler-platform.js";
 import { MatterAccessory, MatterAPI } from "homebridge";
-import { PKOM_PLATFORM_NAME, PKOM_PLUGIN_NAME } from "./settings.js";
 import { ModbusSession, MODBUS_ADDR_MODE, MODBUS_ADDR_COOLING, MODBUS_ADDR_USER_SPEED_LEVEL, MODBUS_ADDR_AUTO_SPEED_LEVEL, MODBUS_ADDR_ACTUAL_SPEED_LEVEL, MODBUS_ADDR_HEATING } from "./modbus.js";
 import { /*MODBUS_ADDR_ECO_TIME,*/ MODBUS_ADDR_COOL_ENABLED, MODBUS_ADDR_HUMID_ENABLED, MODBUS_ADDR_DIOXIDE_ENABLED, MODBUS_ADDR_NORMAL_THRESHOLD, MODBUS_ADDR_ECO_THRESHOLD } from "./modbus.js";
 import { /*MODBUS_ADDR_HEAT_THRESHOLD,*/ MODBUS_ADDR_COOL_THRESHOLD, MODBUS_ADDR_MAX_HUMID_THRESHOLD, MODBUS_ADDR_MAX_DIOXIDE_THRESHOLD, MODBUS_ADDR_MIN_BOILER_THRESHOLD } from "./modbus.js";
@@ -11,7 +10,7 @@ import { MODBUS_ADDR_BOILER_HEATING, MODBUS_ADDR_FILTER_ELAPSED_TIME, MODBUS_ADD
 import { MODBUS_ADDR_VCM_POWER, /*MODBUS_ADDR_WATER_RESIST_POWER,*/ MODBUS_ADDR_AIR_RESIST_POWER, MODBUS_ADDR_WATER_PUMP_POWER, MODBUS_ADDR_AIR_PUMP_POWER } from "./modbus.js";
 import { /*MODBUS_ADDR_FAN_ENERGY, MODBUS_ADDR_HEAT_ENERGY, MODBUS_ADDR_COOL_ENERGY,*/ MODBUS_ADDR_GLOBAL_ENERGY, MODBUS_ADDR_BOILER_ENERGY } from "./modbus.js";
 
-const MANUAL_MODE_DURATION = 3600000;	// 60 min
+// const MANUAL_MODE_DURATION = 3600000;	// 60 min
 const MODBUS_POLLING_PERIOD = 120000;	// 2 min
 const ENERGY_POLLING_PERIOD = 60000;	// 1 min
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;	// 5s while using accessories
@@ -67,7 +66,7 @@ const PKOM_MAX_HEAT_TEMP = 25.0;
 const PKOM_WATER_HEAT_STEP = 0.5;
 const PKOM_WATER_COOL_STEP = 0.1;
 const PKOM_WATER_HYSTERESIS = 2.0;
-const PKOM_HUMID_STEP = 1;
+// const PKOM_HUMID_STEP = 1;
 const PKOM_HUMID_LEVEL = PKOM_SPEED_LEVEL_LOW;
 const PKOM_DEHUMID_LEVEL = PKOM_SPEED_LEVEL_ACTIVE;
 const PKOM_PURIFIER_LEVEL = PKOM_SPEED_LEVEL_HIGH;
@@ -310,7 +309,7 @@ export class PKOM4MatterAccessory {
 					this.didChangeModbusStatus();
 					
 					const modeNames = ["off", "auto", "reserved", "cool", "heat", "emergency heating", "precooling", "fan only"];
-					const modeName = modeNames[systemMode] || `Unknown (${systemMode})`
+					const modeName = modeNames[systemMode] || `Unknown (${systemMode})`;
 					this.platform.log.info("Air conditioner mode set to " + modeName);
 				},
 			},
@@ -351,8 +350,8 @@ export class PKOM4MatterAccessory {
 					activePower: Math.round(this.pkomCurrentPower * 1000.0),
 				},
 				electricalEnergyMeasurement: {
-					cumulativeEnergyImported: { energy: Math.round(this.pkomCumulatedEnergy * 1000.0) }
-// 					periodicEnergyImported: { energy: 0.0 }
+					cumulativeEnergyImported: { energy: Math.round(this.pkomCumulatedEnergy * 1000.0) },
+// 					periodicEnergyImported: { energy: 0.0 },
 				},
 			},
 		}, {
@@ -479,7 +478,7 @@ export class PKOM4MatterAccessory {
 					systemModeChange: async ({ systemMode }) => {
 						this.willObserveModbusStatus();
 						
-						let waterHeaterActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
+						const waterHeaterActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
 						if (this.waterHeaterActive != waterHeaterActive) {
 							this.waterHeaterActive = waterHeaterActive;
 							this.waterHeaterActivationChanged();
@@ -493,15 +492,15 @@ export class PKOM4MatterAccessory {
 		this.platform.log.info("Mechanical ventilation for '%s' initialized", this.roomConditionerAccessory.displayName);
 		this.platform.log.info("Energy sensor for '%s' initialized", this.roomConditionerAccessory.displayName);
 
-		if (this.pkomHasDioxideSensor) {
+		if (this.pkomHasDioxideSensor) {
 			this.platform.log.info("Air quality sensor for '%s' initialized", this.roomConditionerAccessory.displayName);
 		}
 		
-		if (this.pkomHasHumiditySensor) {
+		if (this.pkomHasHumiditySensor) {
 			this.platform.log.info("Humidity sensor for '%s' initialized", this.roomConditionerAccessory.displayName);
 		}
 		
-		if (this.pkomHasWaterHeater) {
+		if (this.pkomHasWaterHeater) {
 			this.platform.log.info("Water heater for '%s' initialized", this.roomConditionerAccessory.displayName);
 		}
 
@@ -513,44 +512,44 @@ export class PKOM4MatterAccessory {
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
-				optionalParts[PKOM_HEATER_PART_INDEX]
+				optionalParts[PKOM_HEATER_PART_INDEX],
 			];			
 		} else if (this.pkomHasHumiditySensor && this.pkomHasWaterHeater) {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX],
-				optionalParts[PKOM_HEATER_PART_INDEX]
+				optionalParts[PKOM_HEATER_PART_INDEX],
 			];
 		} else if (this.pkomHasWaterHeater) {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
-				optionalParts[PKOM_HEATER_PART_INDEX]
+				optionalParts[PKOM_HEATER_PART_INDEX],
 			];			
 		} else if (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor) {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
-				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX]
+				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX],
 			];			
 		} else if (this.pkomHasDioxideSensor) {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
-				optionalParts[PKOM_AIR_QUALITY_PART_INDEX]
+				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 			];			
 		} else if (this.pkomHasHumiditySensor) {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
-				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX]
+				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX],
 			];			
 		} else {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX]
+				optionalParts[PKOM_ENERGY_PART_INDEX],
 			];
 		}
 		
@@ -1189,17 +1188,17 @@ export class PKOM4MatterAccessory {
 		this.filterChangeAlert = (this.pkomFilterDuration < PKOM_FILTER_DURATION_ALERT);
 		this.filterLifeLevel = Math.round(this.pkomFilterDuration / PKOM_FILTER_MAX_DURATION * 100.0);
 		
-		let currentConditionerStatus = this.matter.types.Thermostat.SystemMode.FanOnly;
-		if (this.pkomCurrentlyCooling) {
-			currentConditionerStatus = this.matter.types.Thermostat.SystemMode.Cool;
-		} else if (this.pkomCurrentlyHeating) {
-			currentConditionerStatus = this.matter.types.Thermostat.SystemMode.Heat;
-		}
+// 		let currentConditionerStatus = this.matter.types.Thermostat.SystemMode.FanOnly;
+// 		if (this.pkomCurrentlyCooling) {
+// 			currentConditionerStatus = this.matter.types.Thermostat.SystemMode.Cool;
+// 		} else if (this.pkomCurrentlyHeating) {
+// 			currentConditionerStatus = this.matter.types.Thermostat.SystemMode.Heat;
+// 		}
 		
 		// Adjust current status based on internal manual mode
 // 		let currentPurifierStatus = (this.purifierManualMode ? hap.Attribute.CurrentAirPurifierState.PURIFYING_AIR : hap.Attribute.CurrentAirPurifierState.IDLE);
 // 		let currentHumidifierStatus = (this.dehumidifierManualMode ? hap.Attribute.CurrentHumidifierDehumidifierState.DEHUMIDIFYING : hap.Attribute.CurrentHumidifierDehumidifierState.IDLE);
-		const currentWaterHeaterStatus = (this.pkomCurrentlyWaterHeating ? this.matter.types.Thermostat.SystemMode.Heat : this.matter.types.Thermostat.SystemMode.Off);
+// 		const currentWaterHeaterStatus = (this.pkomCurrentlyWaterHeating ? this.matter.types.Thermostat.SystemMode.Heat : this.matter.types.Thermostat.SystemMode.Off);
 		
 		// Adjust current status based on PKOM automatic behaviour
 // 		if (!this.dehumidifierManualMode && this.fanCurrentSpeedLevel >= PKOM_DEHUMID_LEVEL && this.dehumidifierCurrentHumidity > this.dehumidifierHumidityThreshold) {
