@@ -656,7 +656,7 @@ export class PKOM4MatterAccessory {
 				externallyMeasuredOccupancy: actuallyOccupied,
 				outdoorTemperature: actualOutdoorTemp,
 			});
-		
+			
 			this.platform.log.debug("Air conditioner state is " + this.conditionerTargetState);
 			this.platform.log.debug("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
 			this.platform.log.debug("Air conditioner heating threshold is %f °C", this.conditionerHeatingThreshold);
@@ -666,7 +666,7 @@ export class PKOM4MatterAccessory {
 		}
 				
 		const onOffHeater = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.OnOff, PKOM_HEATER_ID);
-		if (onOffHeater != null && onOffHeater?.onOff != this.waterHeaterActive) {
+		if (onOffHeater != null && onOffHeater.onOff != this.waterHeaterActive) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.waterHeaterActive }, PKOM_HEATER_ID);
 			this.platform.log.debug("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
 		}
@@ -675,13 +675,13 @@ export class PKOM4MatterAccessory {
 		const actualHeaterTemp = this.waterHeaterCurrentTemperature * 100.0;
 		const actualHeaterSetpoint = this.waterHeaterHeatingThreshold * 100.0;
 
-		if (thermostat != null && thermostat?.externalMeasuredIndoorTemperature != actualHeaterTemp || thermostat?.occupiedHeatingSetpoint != actualHeaterSetpoint || thermostat?.systemMode != this.waterHeaterTargetState) {
+		if (thermostat != null && (thermostat.externalMeasuredIndoorTemperature != actualHeaterTemp || thermostat.occupiedHeatingSetpoint != actualHeaterSetpoint || thermostat.systemMode != this.waterHeaterTargetState)) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.Thermostat, {
 				externalMeasuredIndoorTemperature: actualHeaterTemp,
 				occupiedHeatingSetpoint: actualHeaterSetpoint,
 				maxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
 				absMaxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
-				systemMode: (this.waterHeaterActive ? this.matter.types.Thermostat.SystemMode.Heat : this.matter.types.Thermostat.SystemMode.Off),
+				systemMode: this.waterHeaterTargetState,
 			}, PKOM_HEATER_ID);
 		
 			this.platform.log.debug("Water heater state is " + this.waterHeaterTargetState);
@@ -690,13 +690,13 @@ export class PKOM4MatterAccessory {
 		}
 
 		const airQuality = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.AirQuality, PKOM_AIR_QUALITY_ID);
-		if (airQuality != null && airQuality?.airQuality != this.purifierAirQuality) {
+		if (airQuality != null && airQuality.airQuality != this.purifierAirQuality) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.AirQuality, { airQuality: this.purifierAirQuality }, PKOM_AIR_QUALITY_ID);
 			this.platform.log.debug("Air quality sensor air quality is " + this.purifierAirQuality);
 		}
 		
 		const relativeHumidity = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, PKOM_HUMIDITY_SENSOR_ID);
-		if (relativeHumidity != null && relativeHumidity?.measuredValue != this.dehumidifierCurrentHumidity * 100.0) {
+		if (relativeHumidity != null && relativeHumidity.measuredValue != this.dehumidifierCurrentHumidity * 100.0) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, { measuredValue: this.dehumidifierCurrentHumidity * 100.0 }, PKOM_HUMIDITY_SENSOR_ID);
 			this.platform.log.debug("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
 		}
@@ -1110,20 +1110,20 @@ export class PKOM4MatterAccessory {
 		if (this.modbusPendingSave) return;
 		if (this.session.ongoing) return;
 	
-		let modbusLoadingFailed = false;
+		let modbusIsBusy = false;
 		
 		// Fetch modbus registers (trigger an empty save cycle)	
 		const startTime = Date.now();
 		await this.session.begin()
 			.catch(() => {
-				modbusLoadingFailed = true;
+				modbusIsBusy = true;
 				this.platform.log.info("Modbus session is busy operation will be ignored");
 			});
 			
 		if (!keepSession) {
 			await this.session.end()
 				.catch(() => {
-					modbusLoadingFailed = true;
+					modbusIsBusy = true;
 					this.platform.log.info("Modbus session is busy operation will be ignored");
 				});
 		}
@@ -1318,7 +1318,7 @@ export class PKOM4MatterAccessory {
 		// Update air quality status
 		this.purifierDioxideChanged();
 		this.modbusLoadTimestamp = Date.now();
-		this.inited = !modbusLoadingFailed;
+		this.inited = !modbusIsBusy;
 		
 		this.platform.log.info("Modbus status loaded (total duration %d ms)", Date.now() - startTime);
 	}
