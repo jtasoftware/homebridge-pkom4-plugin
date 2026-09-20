@@ -105,7 +105,8 @@ export class PichlerPlatform implements DynamicPlatformPlugin {
 			// Explicit requirements are needed for auto mode
 			const requirements = this.api.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
 			this.cachedMatterAccessory = {
-				UUID: this.api.matter.uuid.generate(PKOM_ACCESSORY_TYPE),
+// 				UUID: this.api.matter.uuid.generate(PKOM_ACCESSORY_TYPE),
+				UUID: this.api.matter.uuid.generate(Math.random().toString()),
 				deviceType: this.api.matter.deviceTypes.RoomAirConditioner.with(requirements),
 				displayName: name,
 				serialNumber: PKOM_GENERIC_SERIAL,
