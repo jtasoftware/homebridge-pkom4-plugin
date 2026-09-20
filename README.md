@@ -100,3 +100,7 @@ Water Heater will automatically loose temperature every 5 min for simulation pur
 To connect to a PKOM device use a Raspberry Pi (model Zero is fine) and a Modbus/USB converter. You might need to adjust the name of USB driver depending on the chip used by the converter - see `/var/lib/homebridge/node_modules/homebridge-pichler-pkom4/scripts/modbus.py` using HomeBridge terminal. You can alternatively use a Raspberry Pi HAT with the 40-pin GPIO header.
 
 You can customize `Modbus logs level` to see modbus communication status from HomeBridge logs.
+
+#### Preliminary Matter support
+
+Version 2.0 add preliminary Matter support. As some HomeKit features are not available in Matter, filter alerts, air purifier and air humidifier are no longer available. Humidity and air quality are still reported but as sensor only. Matter adds support for Water Heater but HomeBridge do not support it yet. HomeBridge and Apple Home v27.x support energy information. Energy and power support is available in simulation mode in version 2.0 and uses live data starting version 2.1.

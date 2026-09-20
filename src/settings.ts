@@ -1,5 +1,9 @@
-export const PLATFORM_NAME = "homebridge-pichler-pkom4";
-export const PLUGIN_NAME = "homebridge-pichler-pkom4";
-export const PLUGIN_VERSION = "1.1.4";
-export const MANUFACTURER_NAME = "Pichler";
-export const APP_MATCHING_ID = "1484302121";
+export const PKOM_PLATFORM_NAME = "homebridge-pichler-pkom4";
+export const PKOM_PLUGIN_NAME = "homebridge-pichler-pkom4";
+export const PKOM_PLUGIN_VERSION = "2.0.0";
+export const PKOM_MANUFACTURER_NAME = "Pichler";
+export const PKOM_APP_MATCHING_ID = "1484302121";
+export const PKOM_GENERIC_SERIAL = "---------";
+export const PKOM_ACCESSORY_NAME = "PKOM 4";
+export const PKOM_ACCESSORY_TYPE = "com.pichler.pkom4";
+export const PKOM_ACCESSORY_UUID = "2FE3C6CF-FA12-43C4-9E5B-9A0CED436307";
