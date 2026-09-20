@@ -1110,16 +1110,20 @@ export class PKOM4MatterAccessory {
 		if (this.modbusPendingSave) return;
 		if (this.session.ongoing) return;
 	
+		let modbusLoadingFailed = false;
+		
 		// Fetch modbus registers (trigger an empty save cycle)	
 		const startTime = Date.now();
 		await this.session.begin()
 			.catch(() => {
+				modbusLoadingFailed = true;
 				this.platform.log.info("Modbus session is busy operation will be ignored");
 			});
 			
 		if (!keepSession) {
 			await this.session.end()
 				.catch(() => {
+					modbusLoadingFailed = true;
 					this.platform.log.info("Modbus session is busy operation will be ignored");
 				});
 		}
@@ -1314,7 +1318,7 @@ export class PKOM4MatterAccessory {
 		// Update air quality status
 		this.purifierDioxideChanged();
 		this.modbusLoadTimestamp = Date.now();
-		this.inited = true;
+		this.inited = !modbusLoadingFailed;
 		
 		this.platform.log.info("Modbus status loaded (total duration %d ms)", Date.now() - startTime);
 	}

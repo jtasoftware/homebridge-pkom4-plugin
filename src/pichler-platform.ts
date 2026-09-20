@@ -2,7 +2,7 @@ import { API, Logging, PlatformConfig, DynamicPlatformPlugin, PlatformAccessory,
 import { PKOM4HapAccessory } from "./pkom4-hap-accessory.js";
 import { PKOM4MatterAccessory } from "./pkom4-matter-accessory.js";
 import { PKOM_PLATFORM_NAME, PKOM_PLUGIN_NAME, PKOM_PLUGIN_VERSION, PKOM_MANUFACTURER_NAME } from "./settings.js";
-import { PKOM_ACCESSORY_UUID, PKOM_ACCESSORY_TYPE, PKOM_ACCESSORY_NAME, PKOM_GENERIC_SERIAL } from "./settings.js";
+import { PKOM_ACCESSORY_UUID, /*PKOM_ACCESSORY_TYPE,*/ PKOM_ACCESSORY_NAME, PKOM_GENERIC_SERIAL } from "./settings.js";
 import { ModbusSession } from "./modbus.js";
 
 export class PichlerPlatform implements DynamicPlatformPlugin {
