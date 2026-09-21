@@ -182,7 +182,9 @@ export class PKOM4MatterAccessory {
 		this.lastPeriodEnergy = this.roomConditionerAccessory.context.lastPeriodEnergy;
 		this.lastPeriodDate = this.roomConditionerAccessory.context.lastPeriodDate;
 		this.lastSimulatedPower = this.roomConditionerAccessory.context.lastSimulatedPower;
-		this.platform.log.info("Restored periodic energy from context: %dkWh", (this.lastPeriodEnergy / 1000.0).toFixed(3));
+		if (this.lastPeriodEnergy != 0) {
+			this.platform.log.info("Restored periodic energy from context: %dkWh", (this.lastPeriodEnergy / 1000.0).toFixed(3));
+		}
 	}
 
 	async connectAndSetup(): Promise<any> {
@@ -337,7 +339,7 @@ export class PKOM4MatterAccessory {
 		const PKOM_FAN_PART_INDEX = 0;
 		const PKOM_ENERGY_PART_INDEX = 1;
 		const PKOM_AIR_QUALITY_PART_INDEX = 2;
-		const PKOM_HUMIDITY_SENSOR_INDEX = 4;
+		const PKOM_HUMIDITY_PART_INDEX = 4;
 		const PKOM_HEATER_PART_INDEX = 4;
 
 		// Define possible (optional) parts configurations
@@ -489,19 +491,19 @@ export class PKOM4MatterAccessory {
 			},
 		}];
 		
-		this.platform.log.info("Mechanical ventilation for '%s' initialized", this.roomConditionerAccessory.displayName);
-		this.platform.log.info("Energy sensor for '%s' initialized", this.roomConditionerAccessory.displayName);
+		this.platform.log.info("Mechanical ventilation initialized with initial state '%s'", optionalParts[PKOM_ENERGY_PART_INDEX].clusters.fanControl);
+		this.platform.log.info("Energy sensor initialized with initial state '%s'", optionalParts[PKOM_FAN_PART_INDEX].clusters.electricalPowerMeasurement);
 
 		if (this.pkomHasDioxideSensor) {
-			this.platform.log.info("Air quality sensor for '%s' initialized", this.roomConditionerAccessory.displayName);
+			this.platform.log.info("Air quality sensor initialized with initial state '%s'", optionalParts[PKOM_AIR_QUALITY_PART_INDEX].clusters.airQuality);
 		}
 		
 		if (this.pkomHasHumiditySensor) {
-			this.platform.log.info("Humidity sensor for '%s' initialized", this.roomConditionerAccessory.displayName);
+			this.platform.log.info("Humidity sensor initialized with initial state '%s'", optionalParts[PKOM_HUMIDITY_PART_INDEX].clusters.relativeHumidityMeasurement);
 		}
 		
 		if (this.pkomHasWaterHeater) {
-			this.platform.log.info("Water heater for '%s' initialized", this.roomConditionerAccessory.displayName);
+			this.platform.log.info("Water heater initialized with initial state '%s'", optionalParts[PKOM_HEATER_PART_INDEX].clusters.thermostat);
 		}
 
 		// Attach available part configurations based on available features
@@ -518,7 +520,7 @@ export class PKOM4MatterAccessory {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
-				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX],
+				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 				optionalParts[PKOM_HEATER_PART_INDEX],
 			];
 		} else if (this.pkomHasWaterHeater) {
@@ -532,7 +534,7 @@ export class PKOM4MatterAccessory {
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
-				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX],
+				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 			];			
 		} else if (this.pkomHasDioxideSensor) {
 			this.roomConditionerAccessory.parts = [
@@ -544,7 +546,7 @@ export class PKOM4MatterAccessory {
 			this.roomConditionerAccessory.parts = [
 				optionalParts[PKOM_FAN_PART_INDEX],
 				optionalParts[PKOM_ENERGY_PART_INDEX],
-				optionalParts[PKOM_HUMIDITY_SENSOR_INDEX],
+				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 			];			
 		} else {
 			this.roomConditionerAccessory.parts = [
