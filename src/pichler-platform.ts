@@ -2,7 +2,7 @@ import { API, Logging, PlatformConfig, DynamicPlatformPlugin, PlatformAccessory,
 import { PKOM4HapAccessory } from "./pkom4-hap-accessory.js";
 import { PKOM4MatterAccessory } from "./pkom4-matter-accessory.js";
 import { PKOM_PLATFORM_NAME, PKOM_PLUGIN_NAME, PKOM_PLUGIN_VERSION, PKOM_MANUFACTURER_NAME } from "./settings.js";
-import { PKOM_ACCESSORY_UUID, /*PKOM_ACCESSORY_TYPE,*/ PKOM_ACCESSORY_NAME, PKOM_GENERIC_SERIAL } from "./settings.js";
+import { PKOM_ACCESSORY_UUID, PKOM_ACCESSORY_TYPE, PKOM_ACCESSORY_NAME, PKOM_GENERIC_SERIAL } from "./settings.js";
 import { ModbusSession } from "./modbus.js";
 
 export class PichlerPlatform implements DynamicPlatformPlugin {
@@ -105,8 +105,8 @@ export class PichlerPlatform implements DynamicPlatformPlugin {
 			// Explicit requirements are needed for auto mode
 			const requirements = this.api.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
 			this.cachedMatterAccessory = {
-// 				UUID: this.api.matter.uuid.generate(PKOM_ACCESSORY_TYPE),
-				UUID: this.api.matter.uuid.generate(Math.random().toString()),
+				UUID: this.api.matter.uuid.generate(PKOM_ACCESSORY_TYPE),
+// 				UUID: this.api.matter.uuid.generate(Math.random().toString()),
 				deviceType: this.api.matter.deviceTypes.RoomAirConditioner.with(requirements),
 				displayName: name,
 				serialNumber: PKOM_GENERIC_SERIAL,

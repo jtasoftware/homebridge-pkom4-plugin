@@ -80,7 +80,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const scriptsFolder = (__dirname + "/../scripts");
-const pythonRelativePath = "bin/python3";
+const pythonRelativePath = "bin/python3.9";
 const shPath = "/bin/sh";
 
 export class ModbusSession {

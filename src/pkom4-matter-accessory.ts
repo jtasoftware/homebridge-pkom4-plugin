@@ -492,7 +492,7 @@ export class PKOM4MatterAccessory {
 		}];
 		
 		this.platform.log.info("Mechanical ventilation initialized with Matter initial state '%s'", optionalParts[PKOM_ENERGY_PART_INDEX].clusters.fanControl);
-		this.platform.log.info("Energy sensor initialized with initial state '%s'", optionalParts[PKOM_FAN_PART_INDEX].clusters.electricalPowerMeasurement);
+		this.platform.log.info("Energy sensor initialized with Matter initial state '%s'", optionalParts[PKOM_FAN_PART_INDEX].clusters.electricalPowerMeasurement);
 
 		if (this.pkomHasDioxideSensor) {
 			this.platform.log.info("Air quality sensor initialized with Matter initial state '%s'", optionalParts[PKOM_AIR_QUALITY_PART_INDEX].clusters.airQuality);
