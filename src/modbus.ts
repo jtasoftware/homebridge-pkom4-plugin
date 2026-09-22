@@ -80,7 +80,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const scriptsFolder = (__dirname + "/../scripts");
-const pythonRelativePath = "bin/python3.9";
+// const pythonRelativePath = "bin/python3";
 const shPath = "/bin/sh";
 
 export class ModbusSession {
@@ -363,11 +363,12 @@ export class ModbusSession {
 		return new Promise(function(resolve, reject) {
 			try {
 				const pyArgs = [(scriptsFolder + "/" + scriptName), verb, JSON.stringify(param)];
-				const pythonPath = (virtualEnv + "/" + pythonRelativePath);
+// 				const pythonPath = (virtualEnv + "/" + pythonRelativePath);
+				const pythonPath = "/usr/bin/python";
 				const pyProcess = spawn(pythonPath, pyArgs );
 				let result = "";
 				let errorMsg = "";
-		
+				
 				pyProcess.stdout.on("data", (data: any) => {
 					result += data.toString();
 				});
