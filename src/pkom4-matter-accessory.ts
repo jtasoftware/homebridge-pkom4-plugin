@@ -622,19 +622,19 @@ export class PKOM4MatterAccessory {
 		const onOffFan = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.OnOff, PKOM_FAN_ID);
 		if (onOffFan?.onOff != this.fanSwitchedOn) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
-			this.platform.log.debug("Mechanical ventilation is " + (this.fanSwitchedOn? "on" : "off"));
+			this.platform.log.info("Mechanical ventilation is " + (this.fanSwitchedOn? "on" : "off"));
 		}
 
 		const fanControl = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.FanControl, PKOM_FAN_ID);
 		if (fanControl?.percentCurrent != this.fanRotationSpeed) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.FanControl, { fanMode:this.matterFanMode(), percentCurrent: this.fanRotationSpeed, percentSetting: this.fanRotationSpeed }, PKOM_FAN_ID);
-			this.platform.log.debug("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
+			this.platform.log.info("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
 		}
 		
 		const onOffConditioner = this.roomConditionerAccessory.clusters?.onOff?.onOff;
 		if (onOffConditioner != this.conditionerActive) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive });
-			this.platform.log.debug("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
+			this.platform.log.info("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
 		}
 		
 		const conditionerIndoorTemp = this.roomConditionerAccessory.clusters?.thermostat?.externalMeasuredIndoorTemperature;
@@ -659,18 +659,18 @@ export class PKOM4MatterAccessory {
 				outdoorTemperature: actualOutdoorTemp,
 			});
 			
-			this.platform.log.debug("Air conditioner state is " + this.conditionerTargetState);
-			this.platform.log.debug("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
-			this.platform.log.debug("Air conditioner heating threshold is %f °C", this.conditionerHeatingThreshold);
-			this.platform.log.debug("Air conditioner cooling threshold is %f °C", this.conditionerCoolingThreshold);
-			this.platform.log.debug("Air conditioner outdoor temperature %f °C", actualOutdoorTemp.toFixed(1));
-			this.platform.log.debug("Air conditioner occupancy is " + (actuallyOccupied ? "'occupied'" : "'holidays'"));
+			this.platform.log.info("Air conditioner state is " + this.conditionerTargetState);
+			this.platform.log.info("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
+			this.platform.log.info("Air conditioner heating threshold is %f °C", this.conditionerHeatingThreshold);
+			this.platform.log.info("Air conditioner cooling threshold is %f °C", this.conditionerCoolingThreshold);
+			this.platform.log.info("Air conditioner outdoor temperature %f °C", actualOutdoorTemp.toFixed(1));
+			this.platform.log.info("Air conditioner occupancy is " + (actuallyOccupied ? "'occupied'" : "'holidays'"));
 		}
 				
 		const onOffHeater = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.OnOff, PKOM_HEATER_ID);
 		if (onOffHeater != null && onOffHeater.onOff != this.waterHeaterActive) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.waterHeaterActive }, PKOM_HEATER_ID);
-			this.platform.log.debug("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
+			this.platform.log.info("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
 		}
 
 		const thermostat = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.Thermostat, PKOM_HEATER_ID);
@@ -686,21 +686,21 @@ export class PKOM4MatterAccessory {
 				systemMode: this.waterHeaterTargetState,
 			}, PKOM_HEATER_ID);
 		
-			this.platform.log.debug("Water heater state is " + this.waterHeaterTargetState);
-			this.platform.log.debug("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
-			this.platform.log.debug("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
+			this.platform.log.info("Water heater state is " + this.waterHeaterTargetState);
+			this.platform.log.info("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
+			this.platform.log.info("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
 		}
 
 		const airQuality = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.AirQuality, PKOM_AIR_QUALITY_ID);
 		if (airQuality != null && airQuality.airQuality != this.purifierAirQuality) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.AirQuality, { airQuality: this.purifierAirQuality }, PKOM_AIR_QUALITY_ID);
-			this.platform.log.debug("Air quality sensor air quality is " + this.purifierAirQuality);
+			this.platform.log.info("Air quality sensor air quality is " + this.purifierAirQuality);
 		}
 		
 		const relativeHumidity = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, PKOM_HUMIDITY_SENSOR_ID);
 		if (relativeHumidity != null && relativeHumidity.measuredValue != this.dehumidifierCurrentHumidity * 100.0) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, { measuredValue: this.dehumidifierCurrentHumidity * 100.0 }, PKOM_HUMIDITY_SENSOR_ID);
-			this.platform.log.debug("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
+			this.platform.log.info("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
 		}
 		
 		// Missing parts from HAP
@@ -712,14 +712,14 @@ export class PKOM4MatterAccessory {
 // 		this.dehumidifierService.updateCharacteristic(hap.Attribute.TargetHumidifierDehumidifierState, this.dehumidifierTargetState);
 // 		this.dehumidifierService.updateCharacteristic(hap.Attribute.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
 // 		this.sensorService.updateCharacteristic(hap.Attribute.CarbonDioxideLevel, this.purifierDioxideLevel);
-// 		this.platform.log.debug("Air quality sensor dioxide level is %d ppm", this.purifierDioxideLevel.toFixed(1));
-// 		this.platform.log.debug("Air purifier is " + (this.purifierActive? "active" : "inactive"));
-// 		this.platform.log.debug("Current air purifier state is " + this.purifierCurrentState);
-// 		this.platform.log.debug("Target air purifier state is " + this.purifierTargetState);
-// 		this.platform.log.debug("Dehumidifier is " + (this.dehumidifierActive? "active" : "inactive"));
-// 		this.platform.log.debug("Target dehumidifier state is " + this.dehumidifierTargetState);
-// 		this.platform.log.debug("Current dehumidifier purifier state is " + this.dehumidifierCurrentState);
-// 		this.platform.log.debug("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
+// 		this.platform.log.info("Air quality sensor dioxide level is %d ppm", this.purifierDioxideLevel.toFixed(1));
+// 		this.platform.log.info("Air purifier is " + (this.purifierActive? "active" : "inactive"));
+// 		this.platform.log.info("Current air purifier state is " + this.purifierCurrentState);
+// 		this.platform.log.info("Target air purifier state is " + this.purifierTargetState);
+// 		this.platform.log.info("Dehumidifier is " + (this.dehumidifierActive? "active" : "inactive"));
+// 		this.platform.log.info("Target dehumidifier state is " + this.dehumidifierTargetState);
+// 		this.platform.log.info("Current dehumidifier purifier state is " + this.dehumidifierCurrentState);
+// 		this.platform.log.info("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
 	}
 	
 	fanActivationChanged() {
@@ -1117,16 +1117,16 @@ export class PKOM4MatterAccessory {
 		// Fetch modbus registers (trigger an empty save cycle)	
 		const startTime = Date.now();
 		await this.session.begin()
-			.catch(() => {
+			.catch((error) => {
 				modbusIsBusy = true;
-				this.platform.log.info("Modbus session is busy operation will be ignored");
+				this.platform.log.info("Modbus session is busy operation will be ignored (%s)", error);
 			});
 			
 		if (!keepSession) {
 			await this.session.end()
-				.catch(() => {
+				.catch((error) => {
 					modbusIsBusy = true;
-					this.platform.log.info("Modbus session is busy operation will be ignored");
+					this.platform.log.info("Modbus session is busy operation will be ignored (%s)", error);
 				});
 		}
 		
@@ -1331,10 +1331,11 @@ export class PKOM4MatterAccessory {
 		// Load all registers
 		const startTime = Date.now();
 		this.modbusPendingSave = true;
+		
 		if (!keepSession) {
 			await this.session.begin()
-			.catch(() => {
-				this.platform.log.info("Modbus session is busy operation will be ignored");
+			.catch((error) => {
+				this.platform.log.info("Modbus session is busy operation will be ignored (%s)", error);
 			});
 			
 			this.platform.log.debug("End of async modbus call");
@@ -1415,8 +1416,8 @@ export class PKOM4MatterAccessory {
 		
 		// Send modified registers
 		await this.session.end()
-			.catch(() => {
-				this.platform.log.info("Modbus session is busy, operation will be ignored");
+			.catch((error) => {
+				this.platform.log.info("Modbus session is busy, operation will be ignored (%s)", error);
 			});
 	
 		this.modbusPendingSave = false;

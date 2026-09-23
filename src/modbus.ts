@@ -80,7 +80,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const scriptsFolder = (__dirname + "/../scripts");
-// const pythonRelativePath = "bin/python3";
+const pythonRelativePath = "bin/python3";
 const shPath = "/bin/sh";
 
 export class ModbusSession {
@@ -270,7 +270,7 @@ export class ModbusSession {
 
   async begin(): Promise<any> {
   	if (this.ongoing) throw "Session error: begin/end calls are unbalanced";
-    if (!this.installed) throw "Session error: modbus module is not yet ready";
+    if (!this.installed) throw "Session error: modbus module is not yet installed";
 	
 		this.ongoing = true;
 		
@@ -302,7 +302,7 @@ export class ModbusSession {
 
 	async end(): Promise<any> {
 		if (!this.ongoing) throw "Session error: begin/end calls are unbalanced";
-		if (!this.installed) throw "Session error: modbus module is not yet ready";
+		if (!this.installed) throw "Session error: modbus module is not yet installed";
 		 
 		// Filter registers that were modified - avoid erasing concurent changes for
 		//	not conflicting registers. Won't manage real conflicts however.
@@ -363,8 +363,7 @@ export class ModbusSession {
 		return new Promise(function(resolve, reject) {
 			try {
 				const pyArgs = [(scriptsFolder + "/" + scriptName), verb, JSON.stringify(param)];
-// 				const pythonPath = (virtualEnv + "/" + pythonRelativePath);
-				const pythonPath = "/usr/bin/python";
+				const pythonPath = (virtualEnv + "/" + pythonRelativePath);
 				const pyProcess = spawn(pythonPath, pyArgs );
 				let result = "";
 				let errorMsg = "";
