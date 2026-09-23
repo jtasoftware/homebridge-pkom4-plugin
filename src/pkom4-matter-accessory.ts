@@ -259,42 +259,37 @@ export class PKOM4MatterAccessory {
 		this.roomConditionerAccessory.handlers = {
 			onOff: {
 				on: async () => {
-					this.willObserveModbusStatus();
-					
 					if (!this.conditionerActive) {
 						this.conditionerActive = true;
 						this.conditionerActivationChanged();
+					} else {
+						this.willObserveModbusStatus();
 					}
 					this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
 				},
 				off: async () => {
-					this.willObserveModbusStatus();
-					
 					if (this.conditionerActive) {
 						this.conditionerActive = false;
 						this.conditionerActivationChanged();
+					} else {
+						this.willObserveModbusStatus();
 					}
 					this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
 				},
 			},
 			thermostat: {
 				occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
-					this.willObserveModbusStatus();
-						
 					this.conditionerHeatingThreshold = occupiedHeatingSetpoint / 100.0;
 					this.conditionerThresholdChanged();
 					this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
 				},
 				occupiedCoolingSetpointChange: async ({ occupiedCoolingSetpoint }) => {
-					this.willObserveModbusStatus();
-						
 					this.conditionerCoolingThreshold = occupiedCoolingSetpoint / 100.0;
 					this.conditionerThresholdChanged();
 					this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
 				},
 				systemModeChange: async ({ systemMode }) => {
 					// Batch change on/off and system mode
-					this.willObserveModbusStatus();
 					this.willChangeModbusStatus();
 					
 					const conditionerActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
@@ -334,7 +329,7 @@ export class PKOM4MatterAccessory {
 		
 		// Complete accessory parts. At this stage accessory is not yet registered.
 		// Internal state is assumed to be up-to-date so that part are configured with real values
-		if (!this.roomConditionerAccessory || this.roomConditionerAccessory.parts) return;
+		if (!this.roomConditionerAccessory /*|| this.roomConditionerAccessory.parts*/) return;
 		
 		const PKOM_FAN_PART_INDEX = 0;
 		const PKOM_ENERGY_PART_INDEX = 1;
@@ -371,42 +366,42 @@ export class PKOM4MatterAccessory {
 			},
 			handlers: {
 				onOff: {
-					on: async () => {
-						this.willObserveModbusStatus();
-						
+					on: async () => {						
 						if (!this.fanSwitchedOn) {
 							this.fanSwitchedOn = true;
 							this.fanActivationChanged();
+						} else {
+							this.willObserveModbusStatus();
 						}
 						this.platform.log.info("Mechanical ventilation state set to " + (this.fanSwitchedOn? "on" : "off"));
 					},
-					off: async () => {
-						this.willObserveModbusStatus();
-						
+					off: async () => {						
 						if (this.fanSwitchedOn) {
 							this.fanSwitchedOn = false;
 							this.fanActivationChanged();
+						} else {
+							this.willObserveModbusStatus();
 						}
 						this.platform.log.info("Mechanical ventilation state set to " + (this.fanSwitchedOn? "on" : "off"));
 					},
 				},
 				fanControl: {
-					fanModeChange: async ({ fanMode }) => {
-						this.willObserveModbusStatus();
-						
+					fanModeChange: async ({ fanMode }) => {						
 						const fanSwitchedOn = (fanMode != this.matter.types.FanControl.FanMode.Off);
 						if (this.fanSwitchedOn != fanSwitchedOn) {
 							this.fanSwitchedOn = fanSwitchedOn;
 							this.fanActivationChanged();					
+						} else {
+							this.willObserveModbusStatus();
 						}
 						this.platform.log.info("Mechanical ventilation mode set to " + (fanSwitchedOn? "on" : "off"));
 					},
-					percentSettingChange: async ({ percentSetting }) => {
-						this.willObserveModbusStatus();
-						
+					percentSettingChange: async ({ percentSetting }) => {					
 						if (percentSetting != null && this.fanRotationSpeed != percentSetting) {
 							this.fanRotationSpeed = percentSetting;
 				 			this.fanSpeedChanged();
+						} else {
+							this.willObserveModbusStatus();
 						}
 						this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
 					},
@@ -450,41 +445,39 @@ export class PKOM4MatterAccessory {
 			},
 			handlers: {
 				onOff: {
-					on: async () => {
-						this.willObserveModbusStatus();
-						
+					on: async () => {						
 						if (!this.waterHeaterActive) {
 							this.waterHeaterActive = true;
 							this.waterHeaterActivationChanged();
+						} else {
+							this.willObserveModbusStatus();
 						}
 						this.platform.log.info("Water heater set to " + (this.waterHeaterActive? "active" : "inactive"));
 					},
 					off: async () => {
-						this.willObserveModbusStatus();
-						
 						if (this.waterHeaterActive) {
 							this.waterHeaterActive = false;
 							this.waterHeaterActivationChanged();
+						} else {
+							this.willObserveModbusStatus();
 						}
 						this.platform.log.info("Water heater set to " + (this.waterHeaterActive? "active" : "inactive"));
 					},
 				},
 				thermostat: {
 					occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
-						this.willObserveModbusStatus();
-						
 						this.waterHeaterHeatingThreshold = occupiedHeatingSetpoint / 100.0;
 						this.waterHeaterThresholdStateChanged();
 						this.platform.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
 					},
 					systemModeChange: async ({ systemMode }) => {
-						this.willObserveModbusStatus();
-						
 						const waterHeaterActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
 						if (this.waterHeaterActive != waterHeaterActive) {
 							this.waterHeaterActive = waterHeaterActive;
 							this.waterHeaterActivationChanged();
 							this.platform.log.info("Water heater set to " + (this.waterHeaterActive? "active" : "inactive"));
+						} else {
+							this.willObserveModbusStatus();
 						}
 					},
 				},
@@ -1111,21 +1104,17 @@ export class PKOM4MatterAccessory {
 	async loadModbusStatus(keepSession = false) {
 		if (this.modbusPendingSave) return;
 		if (this.session.ongoing) return;
-	
-		let modbusIsBusy = false;
-		
+			
 		// Fetch modbus registers (trigger an empty save cycle)	
 		const startTime = Date.now();
 		await this.session.begin()
 			.catch((error) => {
-				modbusIsBusy = true;
 				this.platform.log.info("Modbus session is busy operation will be ignored (%s)", error);
 			});
 			
 		if (!keepSession) {
 			await this.session.end()
 				.catch((error) => {
-					modbusIsBusy = true;
 					this.platform.log.info("Modbus session is busy operation will be ignored (%s)", error);
 				});
 		}
@@ -1320,7 +1309,7 @@ export class PKOM4MatterAccessory {
 		// Update air quality status
 		this.purifierDioxideChanged();
 		this.modbusLoadTimestamp = Date.now();
-		this.inited = !modbusIsBusy;
+		this.inited = true;
 		
 		this.platform.log.info("Modbus status loaded (total duration %d ms)", Date.now() - startTime);
 	}
