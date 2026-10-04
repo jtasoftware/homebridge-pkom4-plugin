@@ -103,6 +103,7 @@ export class PichlerPlatform implements DynamicPlatformPlugin {
 			this.log.info('Pichler platform registering new Matter accessory: %s', name);
 			
 			// Explicit requirements are needed for auto mode
+			// Bug with HomeBridge 2.4.0 - Cannot restore requirements for RoomAirConditioner
 			const requirements = this.api.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
 			this.cachedMatterAccessory = {
 				UUID: this.api.matter.uuid.generate(PKOM_ACCESSORY_TYPE),
