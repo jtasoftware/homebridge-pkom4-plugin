@@ -11,12 +11,14 @@ export const MODBUS_ADDR_AUTO_SPEED_LEVEL = 58;		// ENUM, RW
 export const MODBUS_ADDR_ACTUAL_SPEED_LEVEL = 191;	// ENUM, RO	- see also 194
 export const MODBUS_ADDR_HEATING = 37;				// INT, RO (W) - this is a fake boolean (0W for false)
 export const MODBUS_ADDR_ECO_TIME = 137;			// BOOL, RW
+export const MODBUS_ADDR_AUTO_DEADBAND = 4;			// FIXED, RW
 export const MODBUS_ADDR_COOL_ENABLED = 9;			// INT, RW (No, Yes, Eco)
 export const MODBUS_ADDR_HEAT_ENABLED = 56;			// BOOL, RW
 export const MODBUS_ADDR_HUMID_ENABLED = 75;		// BOOL, RW
 export const MODBUS_ADDR_DIOXIDE_ENABLED = 71;		// BOOL, RW
 export const MODBUS_ADDR_NORMAL_THRESHOLD = 10;		// FIXED, RW
 export const MODBUS_ADDR_ECO_THRESHOLD = 11;		// FIXED, RW
+export const MODBUS_ADDR_HOLIDAYS_THRESHOLD = 12;	// FIXED, RW
 export const MODBUS_ADDR_HEAT_THRESHOLD = 201;		// FIXED, RW
 export const MODBUS_ADDR_COOL_THRESHOLD = 19;		// FIXED, RW
 export const MODBUS_ADDR_MAX_HUMID_THRESHOLD = 102;	// FIXED, RW
@@ -53,9 +55,11 @@ const PKOM_DEMO_MODE = 3;
 const PKOM_DEMO_SPEED_LEVEL = 2;
 const PKOM_DEMO_BOILER_TEMP = 47.0;
 const PKOM_DEMO_BOILER_THRESHOLD = 55.0;
-const PKOM_DEMO_COOL_TEMP = 26.0;
-const PKOM_DEMO_HEAT_TEMP = 22.0;
+const PKOM_DEMO_COOL_THRESHOLD = 26.0;
+const PKOM_DEMO_HEAT_THRESHOLD = 22.0;
 const PKOM_DEMO_OUTDOOR_TEMP = 20.0;
+const PKOM_DEMO_HOLIDAYS_THRESHOLD = 16.0;
+const PKOM_DEMO_AUTO_DEADBAND = 2.0;
 const PKOM_DEMO_AIR_HUMID = 65.0;
 const PKOM_DEMO_AIR_TEMP = 25.0;
 const PKOM_DEMO_AIR_DIOXIDE = 851.0;
@@ -121,8 +125,10 @@ export class ModbusSession {
 			MODBUS_ADDR_HEAT_ENABLED,
 			MODBUS_ADDR_HUMID_ENABLED,
 			MODBUS_ADDR_DIOXIDE_ENABLED,
+			MODBUS_ADDR_AUTO_DEADBAND,
 			MODBUS_ADDR_NORMAL_THRESHOLD,
 			MODBUS_ADDR_ECO_THRESHOLD,
+			MODBUS_ADDR_HOLIDAYS_THRESHOLD,
 			MODBUS_ADDR_HEAT_THRESHOLD,
 			MODBUS_ADDR_COOL_THRESHOLD,
 			MODBUS_ADDR_MAX_HUMID_THRESHOLD,
@@ -170,6 +176,8 @@ export class ModbusSession {
 			true,
 			true,
 			true,
+			true,
+			true,
 			false,
 			true,
 			false,
@@ -208,6 +216,7 @@ export class ModbusSession {
 		this.registersValue[MODBUS_ADDR_HEATING] = false;
 		this.registersValue[MODBUS_ADDR_BOILER_HEATING] = false;
 		this.registersValue[MODBUS_ADDR_ECO_TIME] = 0;
+		this.registersValue[MODBUS_ADDR_AUTO_DEADBAND] = PKOM_DEMO_AUTO_DEADBAND;
 		this.registersValue[MODBUS_ADDR_BYPASS_STATE] = 0;
 		this.registersValue[MODBUS_ADDR_COOL_ENABLED] = demoMode;
 		this.registersValue[MODBUS_ADDR_HUMID_ENABLED] = demoMode;
@@ -221,10 +230,11 @@ export class ModbusSession {
 		this.registersValue[MODBUS_ADDR_MAX_HUMID_THRESHOLD] = PKOM_DEMO_HUMID_THRESHOLD;
 		this.registersValue[MODBUS_ADDR_AIR_HUMID] = (demoMode ? PKOM_DEMO_AIR_HUMID : 0.0);
 		this.registersValue[MODBUS_ADDR_AIR_TEMP] = (demoMode ? PKOM_DEMO_AIR_TEMP : 0.0);
-		this.registersValue[MODBUS_ADDR_NORMAL_THRESHOLD] = PKOM_DEMO_HEAT_TEMP;
-		this.registersValue[MODBUS_ADDR_ECO_THRESHOLD] = PKOM_DEMO_HEAT_TEMP;
-		this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = PKOM_DEMO_HEAT_TEMP;
-		this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = PKOM_DEMO_COOL_TEMP;
+		this.registersValue[MODBUS_ADDR_NORMAL_THRESHOLD] = PKOM_DEMO_HEAT_THRESHOLD;
+		this.registersValue[MODBUS_ADDR_ECO_THRESHOLD] = PKOM_DEMO_HEAT_THRESHOLD;
+		this.registersValue[MODBUS_ADDR_HOLIDAYS_THRESHOLD] = PKOM_DEMO_HOLIDAYS_THRESHOLD;
+		this.registersValue[MODBUS_ADDR_HEAT_THRESHOLD] = PKOM_DEMO_HEAT_THRESHOLD;
+		this.registersValue[MODBUS_ADDR_COOL_THRESHOLD] = PKOM_DEMO_COOL_THRESHOLD;
 		this.registersValue[MODBUS_ADDR_BOILER_ENABLED] = demoMode;
 		this.registersValue[MODBUS_ADDR_BOILER_TEMP] = (demoMode ? PKOM_DEMO_BOILER_TEMP : 0.0);
 		this.registersValue[MODBUS_ADDR_MIN_BOILER_THRESHOLD] = PKOM_DEMO_BOILER_THRESHOLD;

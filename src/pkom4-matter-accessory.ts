@@ -62,9 +62,9 @@ const PKOM_MAX_BOILER_RESISTANCE_TEMP = 65;
 const PKOM_MIN_DEHUMID_HUMID = 60;
 const PKOM_MAX_DEHUMID_HUMID = 80;
 const PKOM_MIN_HUMID_HUMID = 30;
-const PKOM_MIN_COOL_TEMP = 22.0;
-const PKOM_MAX_COOL_TEMP = 28.0;
-const PKOM_MIN_HEAT_TEMP = 18.0;
+const PKOM_MIN_COOL_TEMP = 16.0;
+const PKOM_MAX_COOL_TEMP = 30.0;
+const PKOM_MIN_HEAT_TEMP = 10.0;
 const PKOM_MAX_HEAT_TEMP = 25.0;
 const PKOM_WATER_HEAT_STEP = 0.5;
 const PKOM_WATER_COOL_STEP = 0.1;
@@ -81,7 +81,7 @@ export class PKOM4MatterAccessory {
 	private readonly matter: MatterAPI;
 	private readonly session: ModbusSession;
 	private readonly platform: PichlerPlatform;
-	private readonly airConditionerAccessory: MatterAccessory;
+	private readonly bridgeAccessory: MatterAccessory;
 
 	private simulate = false;
 	private dryRegion = false;
@@ -170,7 +170,7 @@ export class PKOM4MatterAccessory {
 		this.inited = false;
 		this.holidaysEndDate = new Date();
 		this.platform = platform;		
-		this.airConditionerAccessory = accessory;
+		this.bridgeAccessory = accessory;
 
 		// Get simulator options
 		const options = platform.config.simulatedOptions;
@@ -180,9 +180,9 @@ export class PKOM4MatterAccessory {
 		this.platform.log.info("Platform config: " + (this.simulate && this.readOnly ? "simulate, read-only" : (this.simulate ? "simulate" : (this.readOnly ? "read-only" : "none"))));
 
 		// Restore status from previous context
-		this.lastPeriodEnergy = this.airConditionerAccessory.context.lastPeriodEnergy;
-		this.lastPeriodDate = this.airConditionerAccessory.context.lastPeriodDate;
-		this.lastSimulatedPower = this.airConditionerAccessory.context.lastSimulatedPower;
+		this.lastPeriodEnergy = this.bridgeAccessory.context.lastPeriodEnergy;
+		this.lastPeriodDate = this.bridgeAccessory.context.lastPeriodDate;
+		this.lastSimulatedPower = this.bridgeAccessory.context.lastSimulatedPower;
 		if (this.lastPeriodEnergy != 0) {
 			this.platform.log.info("Restored periodic energy from context: %dkWh", (this.lastPeriodEnergy / 1000.0).toFixed(3));
 		}
@@ -204,7 +204,7 @@ export class PKOM4MatterAccessory {
 				
 				// Setup services asynchronously after modbus read
 				await accessory.initAccessory();
-				await accessory.initAccessoryParts();
+				await accessory.initOptionalParts();
 		
 				// Launch periodic update
 				await accessory.startPollingModbusStatus();
@@ -226,136 +226,129 @@ export class PKOM4MatterAccessory {
 		this.platform.log.info("Available PKOM options: %s", options);
 		
 		// Complete accessory cluster map. At this stage accessory is not yet registered.
-		this.airConditionerAccessory.serialNumber = this.pkomSerialNumber;
-		this.airConditionerAccessory.firmwareRevision = this.pkomFirwmareVersion.toString();
-		this.airConditionerAccessory.model = (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT);
+		this.bridgeAccessory.serialNumber = this.pkomSerialNumber;
+		this.bridgeAccessory.firmwareRevision = this.pkomFirwmareVersion.toString();
+		this.bridgeAccessory.model = (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT);
 
-		// Configure conditionner clusters
-		// Note: as Apple Home do not provide separated fan management (FanOnly mode), we declare a part instead of a cluster
-		this.airConditionerAccessory.clusters = {
-			onOff: { onOff: this.conditionerActive },
-			thermostat: {
-				externalMeasuredIndoorTemperature: this.conditionerCurrentTemperature * 100.0,
-				occupiedHeatingSetpoint: this.conditionerHeatingThreshold * 100.0,
-				minHeatSetpointLimit: PKOM_MIN_HEAT_TEMP * 100.0,
-				maxHeatSetpointLimit: PKOM_MAX_HEAT_TEMP * 100.0,
-				occupiedCoolingSetpoint: this.conditionerCoolingThreshold * 100.0,
-				minCoolSetpointLimit: PKOM_MIN_COOL_TEMP * 100.0,
-				maxCoolSetpointLimit: PKOM_MAX_COOL_TEMP * 100.0,
-				minSetpointDeadBand: PKOM_AUTO_DEADBAND * 10.0,
-				controlSequenceOfOperation: 4,
-				systemMode: this.conditionerTargetState,
-				externallyMeasuredOccupancy: (this.pkomMode != PKOM_MODE_HOLIDAYS),
-				outdoorTemperature: this.pkomOutdoorTemperature * 100.0,
-			},
-// 			fanControl: {
-// 				fanMode: this.matterFanMode(),
-// 				fanModeSequence: this.matter.types.FanControl.FanModeSequence.OffLowHigh,
-// 				percentSetting: this.fanRotationSpeed,
-// 				percentCurrent: this.fanRotationSpeed,
-// 			},
-		};
+		const requirements = this.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
+// 		const conditionerType = this.matter.deviceTypes.RoomAirConditioner.with(requirements);
+		const conditionerType = this.matter.deviceTypes.Thermostat;
 		
-		// Configure conditionner handlers
-		this.airConditionerAccessory.handlers = {
-			onOff: {
-				on: async () => {
-					if (!this.conditionerActive) {
-						this.conditionerActive = true;
-						this.conditionerActivationChanged();
-					} else {
-						this.willObserveModbusStatus();
-					}
-					this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
-				},
-				off: async () => {
-					if (this.conditionerActive) {
-						this.conditionerActive = false;
-						this.conditionerActivationChanged();
-					} else {
-						this.willObserveModbusStatus();
-					}
-					this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
-				},
-			},
-			thermostat: {
-				occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
-					this.conditionerHeatingThreshold = occupiedHeatingSetpoint / 100.0;
-					this.conditionerThresholdChanged();
-					this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
-				},
-				occupiedCoolingSetpointChange: async ({ occupiedCoolingSetpoint }) => {
-					this.conditionerCoolingThreshold = occupiedCoolingSetpoint / 100.0;
-					this.conditionerThresholdChanged();
-					this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
-				},
-				systemModeChange: async ({ systemMode }) => {
-					// Batch change on/off and system mode
-					this.willChangeModbusStatus();
-					
-					const conditionerActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
-					if (conditionerActive != this.conditionerActive) {
-						this.conditionerActive = conditionerActive;
-						this.conditionerActivationChanged();
-					}
-					
-					if (systemMode != null && systemMode != this.conditionerTargetState) {
-						this.conditionerTargetState = systemMode;
-						this.conditionerTargetStateChanged();
-					}
-					
-					this.didChangeModbusStatus();
-					
-					const modeNames = ["off", "auto", "reserved", "cool", "heat", "emergency heating", "precooling", "fan only"];
-					const modeName = modeNames[systemMode] || `Unknown (${systemMode})`;
-					this.platform.log.info("Air conditioner mode set to " + modeName);
-				},
-			},
-// 			fanControl: {
-// 				fanModeChange: async ({ fanMode }) => {						
-// 					const fanSwitchedOn = (fanMode != this.matter.types.FanControl.FanMode.Off);
-// 					if (this.fanSwitchedOn != fanSwitchedOn) {
-// 						this.fanSwitchedOn = fanSwitchedOn;
-// 						this.fanActivationChanged();					
-// 					} else {
-// 						this.willObserveModbusStatus();
-// 					}
-// 					this.platform.log.info("Mechanical ventilation mode set to " + (fanSwitchedOn? "on" : "off"));
-// 				},
-// 				percentSettingChange: async ({ percentSetting }) => {					
-// 					if (percentSetting != null && this.fanRotationSpeed != percentSetting) {
-// 						this.fanRotationSpeed = percentSetting;
-// 						this.fanSpeedChanged();
-// 					} else {
-// 						this.willObserveModbusStatus();
-// 					}
-// 					this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
-// 				},
+		// Configure as a bridge with mandatory parts
+		// Note 1: a bridge as no cluster and no handlers
+		// Note 2: as Apple Home do not provide separated fan management (FanOnly mode), we declare a separated part instead of a conditioner cluster
+		this.bridgeAccessory.handlers = {
+			identify: {
+				identify: async () => {
+					this.platform.log.info("Identifying device #" + this.pkomSerialNumber);
+				}
+			}
 		};
 
-		this.platform.log.info("Room conditioner initialized with Matter initial state '%s'", this.airConditionerAccessory.clusters.thermostat);
-	}
-	
-	async initAccessoryParts() {
-		
-		// Complete accessory parts. At this stage accessory is not yet registered.
-		// Internal state is assumed to be up-to-date so that part are configured with real values
-		if (!this.airConditionerAccessory) return;
-		
-// 		const PKOM_FAN_PART_INDEX = 0;
-// 		const PKOM_ENERGY_PART_INDEX = 1;
-// 		const PKOM_AIR_QUALITY_PART_INDEX = 2;
-// 		const PKOM_HUMIDITY_PART_INDEX = 3;
-// 		const PKOM_WATER_PART_INDEX = 4;
-		const PKOM_AIR_PART_INDEX = 0;
-		const PKOM_FAN_PART_INDEX = 1;
-		const PKOM_ENERGY_PART_INDEX = 2;
-		const PKOM_AIR_QUALITY_PART_INDEX = 3;
-		const PKOM_HUMIDITY_PART_INDEX = 4;
-		const PKOM_WATER_PART_INDEX = 5;
-
-		// Define possible (optional) parts configurations
-		const optionalParts: MatterAccessory["parts"] = [{
+		this.bridgeAccessory.parts = [{
+			id: PKOM_AIR_ID,
+			displayName: PKOM_AIR_NAME,
+			deviceType: conditionerType,
+			clusters: {
+				onOff: { onOff: this.conditionerActive },
+				thermostat: {
+					externalMeasuredIndoorTemperature: this.conditionerCurrentTemperature * 100.0,
+					occupiedHeatingSetpoint: this.conditionerHeatingThreshold * 100.0,
+					minHeatSetpointLimit: PKOM_MIN_HEAT_TEMP * 100.0,
+					maxHeatSetpointLimit: PKOM_MAX_HEAT_TEMP * 100.0,
+					occupiedCoolingSetpoint: this.conditionerCoolingThreshold * 100.0,
+					minCoolSetpointLimit: PKOM_MIN_COOL_TEMP * 100.0,
+					maxCoolSetpointLimit: PKOM_MAX_COOL_TEMP * 100.0,
+					minSetpointDeadBand: PKOM_AUTO_DEADBAND * 10.0,
+					controlSequenceOfOperation: 4,
+					systemMode: this.conditionerTargetState,
+					externallyMeasuredOccupancy: (this.pkomMode != PKOM_MODE_HOLIDAYS),
+					outdoorTemperature: this.pkomOutdoorTemperature * 100.0,
+				},
+	// 			fanControl: {
+	// 				fanMode: this.matterFanMode(),
+	// 				fanModeSequence: this.matter.types.FanControl.FanModeSequence.OffLowHigh,
+	// 				percentSetting: this.fanRotationSpeed,
+	// 				percentCurrent: this.fanRotationSpeed,
+	// 			},
+			},
+			handlers: {
+				onOff: {
+					on: async () => {
+						if (!this.conditionerActive) {
+							this.conditionerActive = true;
+							this.conditionerActivationChanged();
+						} else {
+							this.willObserveModbusStatus();
+						}
+						this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
+					},
+					off: async () => {
+						if (this.conditionerActive) {
+							this.conditionerActive = false;
+							this.conditionerActivationChanged();
+						} else {
+							this.willObserveModbusStatus();
+						}
+						this.platform.log.info("Air conditioner set to " + (this.conditionerActive? "active" : "inactive"));
+					},
+				},
+				thermostat: {
+					occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
+						this.conditionerHeatingThreshold = occupiedHeatingSetpoint / 100.0;
+						this.conditionerThresholdChanged();
+						this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
+					},
+					occupiedCoolingSetpointChange: async ({ occupiedCoolingSetpoint }) => {
+						this.conditionerCoolingThreshold = occupiedCoolingSetpoint / 100.0;
+						this.conditionerThresholdChanged();
+						this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
+					},
+					systemModeChange: async ({ systemMode }) => {
+						// Batch change on/off and system mode
+						this.willChangeModbusStatus();
+						
+						const conditionerActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
+						if (conditionerActive != this.conditionerActive) {
+							this.conditionerActive = conditionerActive;
+							this.conditionerActivationChanged();
+						}
+						
+						if (systemMode != null && systemMode != this.conditionerTargetState) {
+							this.conditionerTargetState = systemMode;
+							this.conditionerTargetStateChanged();
+						}
+						
+						this.didChangeModbusStatus();
+						
+						const modeNames = ["off", "auto", "reserved", "cool", "heat", "emergency heating", "precooling", "fan only"];
+						const modeName = modeNames[systemMode] || `Unknown (${systemMode})`;
+						this.platform.log.info("Air conditioner mode set to " + modeName);
+					},
+				},
+	// 			fanControl: {
+	// 				fanModeChange: async ({ fanMode }) => {						
+	// 					const fanSwitchedOn = (fanMode != this.matter.types.FanControl.FanMode.Off);
+	// 					if (this.fanSwitchedOn != fanSwitchedOn) {
+	// 						this.fanSwitchedOn = fanSwitchedOn;
+	// 						this.fanActivationChanged();					
+	// 					} else {
+	// 						this.willObserveModbusStatus();
+	// 					}
+	// 					this.platform.log.info("Mechanical ventilation mode set to " + (fanSwitchedOn? "on" : "off"));
+	// 				},
+	// 				percentSettingChange: async ({ percentSetting }) => {					
+	// 					if (percentSetting != null && this.fanRotationSpeed != percentSetting) {
+	// 						this.fanRotationSpeed = percentSetting;
+	// 						this.fanSpeedChanged();
+	// 					} else {
+	// 						this.willObserveModbusStatus();
+	// 					}
+	// 					this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
+	// 				},
+	// 			},
+			}
+		}, {
 			id: PKOM_FAN_ID,
 			displayName: PKOM_FAN_NAME,
 			deviceType: this.matter.deviceTypes.Fan,
@@ -370,7 +363,7 @@ export class PKOM4MatterAccessory {
 			},
 			handlers: {
 				onOff: {
-					on: async (_args, context) => {						
+					on: async () => {						
 						if (!this.fanSwitchedOn) {
 							this.fanSwitchedOn = true;
 							this.fanActivationChanged();
@@ -379,7 +372,7 @@ export class PKOM4MatterAccessory {
 						}
 						this.platform.log.info("Mechanical ventilation state set to " + (this.fanSwitchedOn? "on" : "off"));
 					},
-					off: async (_args, context) => {						
+					off: async () => {						
 						if (this.fanSwitchedOn) {
 							this.fanSwitchedOn = false;
 							this.fanActivationChanged();
@@ -424,7 +417,31 @@ export class PKOM4MatterAccessory {
 // 					periodicEnergyImported: { energy: 0.0 },
 				},
 			},
-		}, {
+		}];		
+	}
+	
+	async initOptionalParts() {
+		
+		// Complete accessory parts. At this stage accessory is not yet registered.
+		// Internal state is assumed to be up-to-date so that part are configured with real values
+		if (!this.bridgeAccessory || !this.bridgeAccessory.parts) return;
+		
+		// Fetch mandatory parts configurations from existing parts
+		const mandatoryParts = this.bridgeAccessory.parts;
+		const PKOM_AIR_PART_INDEX = 0;
+		const PKOM_FAN_PART_INDEX = 1;
+		const PKOM_ENERGY_PART_INDEX = 2;
+
+		this.platform.log.info("Room conditioner initialized with Matter initial state '%s'", mandatoryParts[PKOM_AIR_PART_INDEX].clusters.thermostat);
+		this.platform.log.info("Mechanical ventilation initialized with Matter initial state '%s'", mandatoryParts[PKOM_FAN_PART_INDEX].clusters.fanControl);
+		this.platform.log.info("Energy sensor initialized with Matter initial state '%s'", mandatoryParts[PKOM_ENERGY_PART_INDEX].clusters.electricalPowerMeasurement);
+
+		// Define possible (optional) parts configurations
+		const PKOM_AIR_QUALITY_PART_INDEX = 0;
+		const PKOM_HUMIDITY_PART_INDEX = 1;
+		const PKOM_WATER_PART_INDEX = 2;
+
+		const optionalParts: MatterAccessory["parts"] = [{
 			id: PKOM_AIR_QUALITY_ID,
 			displayName: PKOM_AIR_QUALITY_NAME,
 			deviceType: this.matter.deviceTypes.AirQualitySensor,
@@ -501,9 +518,6 @@ export class PKOM4MatterAccessory {
 			},
 		}];
 		
-		this.platform.log.info("Mechanical ventilation initialized with Matter initial state '%s'", optionalParts[PKOM_ENERGY_PART_INDEX].clusters.fanControl);
-		this.platform.log.info("Energy sensor initialized with Matter initial state '%s'", optionalParts[PKOM_FAN_PART_INDEX].clusters.electricalPowerMeasurement);
-
 		if (this.pkomHasDioxideSensor) {
 			this.platform.log.info("Air quality sensor initialized with Matter initial state '%s'", optionalParts[PKOM_AIR_QUALITY_PART_INDEX].clusters.airQuality);
 		}
@@ -515,65 +529,72 @@ export class PKOM4MatterAccessory {
 		if (this.pkomHasWaterHeater) {
 			this.platform.log.info("Water heater initialized with Matter initial state '%s'", optionalParts[PKOM_WATER_PART_INDEX].clusters.thermostat);
 		}
-
-		// Attach available part configurations based on available features
+		
+		// Merge mandatory and optional parts based on available features
 		if (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor && this.pkomHasWaterHeater) {
-			this.airConditionerAccessory.parts = optionalParts;
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
+				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
+				optionalParts[PKOM_HUMIDITY_PART_INDEX],
+				optionalParts[PKOM_WATER_PART_INDEX],
+			];
 		} else if (this.pkomHasDioxideSensor && this.pkomHasWaterHeater) {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 				optionalParts[PKOM_WATER_PART_INDEX],
-			];			
+			];
 		} else if (this.pkomHasHumiditySensor && this.pkomHasWaterHeater) {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 				optionalParts[PKOM_WATER_PART_INDEX],
 			];
 		} else if (this.pkomHasWaterHeater) {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_WATER_PART_INDEX],
-			];			
+			];
 		} else if (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor) {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 			];			
 		} else if (this.pkomHasDioxideSensor) {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
-			];			
+			];
 		} else if (this.pkomHasHumiditySensor) {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
-			];			
+			];
 		} else {
-			this.airConditionerAccessory.parts = [
-				optionalParts[PKOM_AIR_PART_INDEX],
-				optionalParts[PKOM_FAN_PART_INDEX],
-				optionalParts[PKOM_ENERGY_PART_INDEX],
+			this.bridgeAccessory.parts = [
+				mandatoryParts[PKOM_AIR_PART_INDEX],
+				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 			];
 		}
 		
 		// Missing parts from HAP
-// 		this.platform.log.info("Filter maintenance for '%s' initialized", this.airConditionerAccessory.displayName);
+// 		this.platform.log.info("Filter maintenance for '%s' initialized", this.bridgeAccessory.displayName);
 // 		this.purifierService.getCharacteristic(hap.Characteristic.Active)
 // 			this.purifierActive = value as boolean;
 // 			this.purifierActivationChanged();
@@ -598,10 +619,10 @@ export class PKOM4MatterAccessory {
 	
 	async updateAccessoryEnergyMeasurement() {
 	
-		if (this.airConditionerAccessory.parts == null) return;
+		if (!this.bridgeAccessory.parts) return;
 
 		// Energy measures are updated on a time-based pattern, independently from PKOM measures
-		const uuid = this.airConditionerAccessory.UUID;
+		const uuid = this.bridgeAccessory.UUID;
 		this.matter.updateAccessoryState(uuid, this.matter.clusterNames.ElectricalPowerMeasurement, { activePower: Math.round(this.pkomCurrentPower * 1000.0) }, PKOM_ENERGY_ID);
 		this.platform.log.debug("Active power is %dW", (this.pkomCurrentPower).toFixed(1));
 		
@@ -615,27 +636,30 @@ export class PKOM4MatterAccessory {
 		this.platform.log.info("Periodic energy is %dWh", (periodicEnergy).toFixed(3));
 		
 		// Persist periodic information in context 
-		this.airConditionerAccessory.context.lastPeriodDate = this.lastPeriodDate;
-		this.airConditionerAccessory.context.lastPeriodEnergy = this.lastPeriodEnergy;
-		this.airConditionerAccessory.context.lastSimulatedPower = this.lastSimulatedPower;
+		this.bridgeAccessory.context.lastPeriodDate = this.lastPeriodDate;
+		this.bridgeAccessory.context.lastPeriodEnergy = this.lastPeriodEnergy;
+		this.bridgeAccessory.context.lastSimulatedPower = this.lastSimulatedPower;
 	}
-
-	async updateAccessoryClustersState() {
-
-		if (this.airConditionerAccessory.parts == null) return;
-
-		const uuid = this.airConditionerAccessory.UUID;
-		
+	
+	async updateAccessoryInfos() {
+			
 		// This is a temporary fix because boiler can be identified only after few hours
 		const model = (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT);
-		if (this.airConditionerAccessory.model != model) {
-			this.airConditionerAccessory.model = model;
+		if (this.bridgeAccessory.model != model) {
+			this.bridgeAccessory.model = model;
 		}
 
-		if (this.airConditionerAccessory.firmwareRevision != this.pkomFirwmareVersion.toString()) {
-			this.airConditionerAccessory.firmwareRevision = this.pkomFirwmareVersion.toString();
+		if (this.bridgeAccessory.firmwareRevision != this.pkomFirwmareVersion.toString()) {
+			this.bridgeAccessory.firmwareRevision = this.pkomFirwmareVersion.toString();
 		}
-		
+	}
+
+	async updateAccessoryPartState() {
+
+		if (!this.bridgeAccessory.parts) return;
+
+		const uuid = this.bridgeAccessory.UUID;
+				
 		const onOffFan = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.OnOff, PKOM_FAN_ID);
 		if (onOffFan?.onOff != this.fanSwitchedOn) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
@@ -648,25 +672,20 @@ export class PKOM4MatterAccessory {
 			this.platform.log.info("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
 		}
 		
-		const onOffConditioner = this.airConditionerAccessory.clusters?.onOff?.onOff;
-		if (onOffConditioner != this.conditionerActive) {
-			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive });
+		const onOffConditioner = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.OnOff, PKOM_AIR_ID);
+		if (onOffConditioner?.onOff != this.conditionerActive) {
+			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive }, PKOM_AIR_ID);
 			this.platform.log.info("Air conditioner is " + (this.conditionerActive? "active" : "inactive"));
 		}
 		
-		const conditionerIndoorTemp = this.airConditionerAccessory.clusters?.thermostat?.externalMeasuredIndoorTemperature;
-		const conditionerHeatSetpoint = this.airConditionerAccessory.clusters?.thermostat?.occupiedHeatingSetpoint;
-		const conditionerCoolSetpoint = this.airConditionerAccessory.clusters?.thermostat?.occupiedCoolingSetpoint;
-		const conditionerSystemMode = this.airConditionerAccessory.clusters?.thermostat?.systemMode;
-		const conditionerOccupancy = this.airConditionerAccessory.clusters?.thermostat?.externallyMeasuredOccupancy;
-		const conditionerOutdoorTemp = this.airConditionerAccessory.clusters?.thermostat?.outdoorTemperature;
+		const airThermostat = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.Thermostat, PKOM_AIR_ID);
 		const actualIndoorTemp = this.conditionerCurrentTemperature * 100.0;
 		const actualHeatSetpoint = this.conditionerHeatingThreshold * 100.0;
 		const actualCoolSetpoint = this.conditionerCoolingThreshold * 100.0;
 		const actuallyOccupied = (this.pkomMode != PKOM_MODE_HOLIDAYS);
 		const actualOutdoorTemp = this.pkomOutdoorTemperature * 100.0;
-
-		if (conditionerIndoorTemp != actualIndoorTemp || conditionerHeatSetpoint != actualHeatSetpoint || conditionerCoolSetpoint != actualCoolSetpoint || conditionerSystemMode != this.conditionerTargetState || conditionerOccupancy != actuallyOccupied || conditionerOutdoorTemp != actualOutdoorTemp) {
+		
+		if (airThermostat != null && (airThermostat.externalMeasuredIndoorTemperature != actualIndoorTemp || airThermostat.occupiedHeatingSetpoint != actualHeatSetpoint || airThermostat.occupiedCoolingSetpoint != actualCoolSetpoint || airThermostat.systemMode != this.conditionerTargetState || airThermostat.externallyMeasuredOccupancy != actuallyOccupied || airThermostat.outdoorTemperature != actualOutdoorTemp)) {
 			this.matter.updateAccessoryState(uuid, 'thermostat', {
 				externalMeasuredIndoorTemperature: actualIndoorTemp,
 				occupiedHeatingSetpoint: actualHeatSetpoint,
@@ -674,7 +693,7 @@ export class PKOM4MatterAccessory {
 				systemMode: this.conditionerTargetState,
 				externallyMeasuredOccupancy: actuallyOccupied,
 				outdoorTemperature: actualOutdoorTemp,
-			});
+			}, PKOM_AIR_ID);
 			
 			this.platform.log.info("Air conditioner state is " + this.conditionerTargetState);
 			this.platform.log.info("Air conditioner temperature %f °C", this.conditionerCurrentTemperature.toFixed(1));
@@ -690,11 +709,11 @@ export class PKOM4MatterAccessory {
 			this.platform.log.info("Water heater is " + (this.waterHeaterActive? "active" : "inactive"));
 		}
 
-		const thermostat = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.Thermostat, PKOM_WATER_ID);
+		const waterThermostat = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.Thermostat, PKOM_WATER_ID);
 		const actualHeaterTemp = this.waterHeaterCurrentTemperature * 100.0;
 		const actualHeaterSetpoint = this.waterHeaterHeatingThreshold * 100.0;
 
-		if (thermostat != null && (thermostat.externalMeasuredIndoorTemperature != actualHeaterTemp || thermostat.occupiedHeatingSetpoint != actualHeaterSetpoint || thermostat.systemMode != this.waterHeaterTargetState)) {
+		if (waterThermostat != null && (waterThermostat.externalMeasuredIndoorTemperature != actualHeaterTemp || waterThermostat.occupiedHeatingSetpoint != actualHeaterSetpoint || waterThermostat.systemMode != this.waterHeaterTargetState)) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.Thermostat, {
 				externalMeasuredIndoorTemperature: actualHeaterTemp,
 				occupiedHeatingSetpoint: actualHeaterSetpoint,
@@ -707,7 +726,7 @@ export class PKOM4MatterAccessory {
 			this.platform.log.info("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
 			this.platform.log.info("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
 		}
-
+		
 		const airQuality = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.AirQuality, PKOM_AIR_QUALITY_ID);
 		if (airQuality != null && airQuality.airQuality != this.purifierAirQuality) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.AirQuality, { airQuality: this.purifierAirQuality }, PKOM_AIR_QUALITY_ID);
@@ -721,21 +740,9 @@ export class PKOM4MatterAccessory {
 		}
 		
 		// Missing parts from HAP
-// 		this.purifierService.updateCharacteristic(hap.Attribute.Active, this.purifierActive);
-// 		this.purifierService.updateCharacteristic(hap.Attribute.CurrentAirPurifierState, this.purifierCurrentState);
-// 		this.purifierService.updateCharacteristic(hap.Attribute.TargetAirPurifierState, this.purifierTargetState);
-// 		this.dehumidifierService.updateCharacteristic(hap.Attribute.Active, this.dehumidifierActive);
-// 		this.dehumidifierService.updateCharacteristic(hap.Attribute.CurrentHumidifierDehumidifierState, this.dehumidifierCurrentState);
-// 		this.dehumidifierService.updateCharacteristic(hap.Attribute.TargetHumidifierDehumidifierState, this.dehumidifierTargetState);
-// 		this.dehumidifierService.updateCharacteristic(hap.Attribute.RelativeHumidityDehumidifierThreshold, this.dehumidifierHumidityThreshold);
-// 		this.sensorService.updateCharacteristic(hap.Attribute.CarbonDioxideLevel, this.purifierDioxideLevel);
 // 		this.platform.log.info("Air quality sensor dioxide level is %d ppm", this.purifierDioxideLevel.toFixed(1));
-// 		this.platform.log.info("Air purifier is " + (this.purifierActive? "active" : "inactive"));
-// 		this.platform.log.info("Current air purifier state is " + this.purifierCurrentState);
 // 		this.platform.log.info("Target air purifier state is " + this.purifierTargetState);
-// 		this.platform.log.info("Dehumidifier is " + (this.dehumidifierActive? "active" : "inactive"));
 // 		this.platform.log.info("Target dehumidifier state is " + this.dehumidifierTargetState);
-// 		this.platform.log.info("Current dehumidifier purifier state is " + this.dehumidifierCurrentState);
 // 		this.platform.log.info("Dehumidifier dehumidifying threshold is %d%%", this.dehumidifierHumidityThreshold);
 	}
 	
@@ -755,7 +762,7 @@ export class PKOM4MatterAccessory {
 			this.conditionerPreviouslyActivated = this.conditionerActive;
 			if (this.conditionerActive) {
 				this.conditionerActive = false;
-				this.matter.updateAccessoryState(this.airConditionerAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive });
+				this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive }, PKOM_AIR_ID);
 				this.conditionerActivationChanged();
 				this.platform.log.info("Linked deactivation: conditioner stored to " + (this.conditionerPreviouslyActivated? "active" : "inactive"));
 			}
@@ -783,7 +790,7 @@ export class PKOM4MatterAccessory {
 
 			if (this.conditionerActive != this.conditionerPreviouslyActivated) {
 				this.conditionerActive = this.conditionerPreviouslyActivated;
-				this.matter.updateAccessoryState(this.airConditionerAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive });
+				this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive }, PKOM_AIR_ID);
 				this.conditionerActivationChanged();
 				this.platform.log.info("Linked deactivation: conditioner restored to " + (this.conditionerActive? "active" : "inactive"));
 			}
@@ -802,7 +809,7 @@ export class PKOM4MatterAccessory {
 	fanSpeedLevelChanged() {
 		this.willChangeModbusStatus();
 		this.fanRotationSpeed = this.fanRotationScale[this.fanCurrentSpeedLevel];
-		this.matter.updateAccessoryState(this.airConditionerAccessory.UUID, this.matter.clusterNames.FanControl, { fanMode: this.matterFanMode(), percentCurrent: this.fanRotationSpeed, percentSetting: this.fanRotationSpeed }, PKOM_FAN_ID);
+		this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.FanControl, { fanMode: this.matterFanMode(), percentCurrent: this.fanRotationSpeed, percentSetting: this.fanRotationSpeed }, PKOM_FAN_ID);
 		this.didChangeModbusStatus();
 	}
 	
@@ -840,7 +847,7 @@ export class PKOM4MatterAccessory {
 		if (this.purifierActive && !this.fanSwitchedOn) {
 			this.fanSwitchedOn = true;
 			this.fanManualMode = false;
-			this.matter.updateAccessoryState(this.airConditionerAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
+			this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
 			this.fanActivationChanged();
 		}
 
@@ -866,9 +873,9 @@ export class PKOM4MatterAccessory {
 				this.purifierAirQuality = index;
 			}
 		}
-		
+				
 		// Bug with HomeBridge 2.4.0: raises an error with values higher than 1
-		this.purifierAirQuality = Math.min(this.purifierAirQuality, 1);
+ 		this.purifierAirQuality = Math.min(this.purifierAirQuality, 1);
 	}
 	
 	purifierTargetStateChanged() {
@@ -940,7 +947,7 @@ export class PKOM4MatterAccessory {
 		if (this.dehumidifierActive && !this.fanSwitchedOn) {
 			this.fanSwitchedOn = true;
 			this.fanManualMode = false;
-			this.matter.updateAccessoryState(this.airConditionerAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
+			this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
 			this.fanActivationChanged();
 		}
 	
@@ -1027,7 +1034,7 @@ export class PKOM4MatterAccessory {
 		if (this.conditionerActive && !this.fanSwitchedOn) {
 			this.fanSwitchedOn = true;
 			this.fanManualMode = false;
-			this.matter.updateAccessoryState(this.airConditionerAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
+			this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
 			this.fanActivationChanged();
 		}
 		
@@ -1075,7 +1082,8 @@ export class PKOM4MatterAccessory {
 				}
 	
 				// Update clusters & parts
-				await this.updateAccessoryClustersState();
+				await this.updateAccessoryInfos();
+				await this.updateAccessoryPartState();
 				this.platform.log.info("Modbus recurrent checking done");
 			})();
 		}, MODBUS_POLLING_PERIOD);

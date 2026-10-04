@@ -49,9 +49,11 @@ if (param2 == ""):
 # 	usefull to implement a retro compatiblity with legacy code
 modbusRegistersType = {
   '0': 'unsigned',
+  '4': 'signed',
   '9': 'unsigned',
   '10': 'signed',
   '11': 'signed',
+  '12': 'signed',
   '16': 'unsigned',
   '19': 'signed',
   '24': 'unsigned',
@@ -90,9 +92,11 @@ modbusRegistersType = {
 }
 modbusRegistersDecimal = {
   '0': 0,
+  '4': 2,
   '9': 0,
   '10': 2,
   '11': 2,
+  '12': 2,
   '16': 0,
   '19': 2,
   '24': 1,
@@ -131,9 +135,11 @@ modbusRegistersDecimal = {
 }
 modbusRegistersMode = {
   '0': 'RW',
+  '4': 'RW',
   '9': 'RW',
   '10': 'RW',
   '11': 'RW',
+  '12': 'RW',
   '16': 'RW',
   '19': 'RW',
   '24': 'RO',
@@ -260,7 +266,9 @@ if (verb == "get" or verb == "set"):
 elif (verb == "demo"):
 	modbusRegisters = {
 	  '0': 3,
+	  '4': 2,
 	  '9': 0,
+	  '12': 16,
 	  '16': 3,
 	  '19': 26,
 	  '27': 25,
