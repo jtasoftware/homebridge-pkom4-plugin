@@ -230,7 +230,7 @@ export class PKOM4MatterAccessory {
 		this.bridgeAccessory.firmwareRevision = this.pkomFirwmareVersion.toString();
 		this.bridgeAccessory.model = (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT);
 
-		const requirements = this.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
+// 		const requirements = this.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
 // 		const conditionerType = this.matter.deviceTypes.RoomAirConditioner.with(requirements);
 		const conditionerType = this.matter.deviceTypes.Thermostat;
 		
@@ -241,8 +241,8 @@ export class PKOM4MatterAccessory {
 			identify: {
 				identify: async () => {
 					this.platform.log.info("Identifying device #" + this.pkomSerialNumber);
-				}
-			}
+				},
+			},
 		};
 
 		this.bridgeAccessory.parts = [{
@@ -347,7 +347,7 @@ export class PKOM4MatterAccessory {
 	// 					this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
 	// 				},
 	// 			},
-			}
+			},
 		}, {
 			id: PKOM_FAN_ID,
 			displayName: PKOM_FAN_NAME,
