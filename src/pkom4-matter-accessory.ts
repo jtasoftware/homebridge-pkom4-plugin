@@ -252,18 +252,18 @@ export class PKOM4MatterAccessory {
 			clusters: {
 				onOff: { onOff: this.conditionerActive },
 				thermostat: {
-					externalMeasuredIndoorTemperature: this.conditionerCurrentTemperature * 100.0,
-					occupiedHeatingSetpoint: this.conditionerHeatingThreshold * 100.0,
+					externalMeasuredIndoorTemperature: Math.floor(this.conditionerCurrentTemperature * 100.0),
+					occupiedHeatingSetpoint: Math.floor(this.conditionerHeatingThreshold * 100.0),
 					minHeatSetpointLimit: PKOM_MIN_HEAT_TEMP * 100.0,
 					maxHeatSetpointLimit: PKOM_MAX_HEAT_TEMP * 100.0,
-					occupiedCoolingSetpoint: this.conditionerCoolingThreshold * 100.0,
+					occupiedCoolingSetpoint: Math.floor(this.conditionerCoolingThreshold * 100.0),
 					minCoolSetpointLimit: PKOM_MIN_COOL_TEMP * 100.0,
 					maxCoolSetpointLimit: PKOM_MAX_COOL_TEMP * 100.0,
 					minSetpointDeadBand: PKOM_AUTO_DEADBAND * 10.0,
 					controlSequenceOfOperation: 4,
 					systemMode: this.conditionerTargetState,
 					externallyMeasuredOccupancy: (this.pkomMode != PKOM_MODE_HOLIDAYS),
-					outdoorTemperature: this.pkomOutdoorTemperature * 100.0,
+					outdoorTemperature: Math.floor(this.pkomOutdoorTemperature * 100.0),
 				},
 	// 			fanControl: {
 	// 				fanMode: this.matterFanMode(),
@@ -454,7 +454,7 @@ export class PKOM4MatterAccessory {
 			deviceType: this.matter.deviceTypes.HumiditySensor,
 			clusters: {
 				relativeHumidityMeasurement: {
-					measuredValue: this.dehumidifierCurrentHumidity * 100.0,
+					measuredValue: Math.floor(this.dehumidifierCurrentHumidity * 100.0),
 					minMeasuredValue: 0,
 					maxMeasuredValue: 10000,
 				},
@@ -467,12 +467,12 @@ export class PKOM4MatterAccessory {
 			clusters: {
 				onOff: { onOff: this.waterHeaterActive },
 				thermostat: {
-					externalMeasuredIndoorTemperature: this.waterHeaterCurrentTemperature * 100.0,
-					occupiedHeatingSetpoint: this.waterHeaterHeatingThreshold * 100.0,
+					externalMeasuredIndoorTemperature: Math.floor(this.waterHeaterCurrentTemperature * 100.0),
+					occupiedHeatingSetpoint: Math.floor(this.waterHeaterHeatingThreshold * 100.0),
 					minHeatSetpointLimit: PKOM_MIN_BOILER_TEMP * 100.0,
 					maxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
 					absMinHeatSetpointLimit: PKOM_MIN_BOILER_TEMP * 100.0,
-					absMaxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
+					absMaxHeatSetpointLimit: PKOM_MAX_BOILER_RESISTANCE_TEMP * 100.0,
 					controlSequenceOfOperation: 2,
 					systemMode: (this.waterHeaterActive ? this.matter.types.Thermostat.SystemMode.Heat : this.matter.types.Thermostat.SystemMode.Off),
 				},
@@ -679,11 +679,11 @@ export class PKOM4MatterAccessory {
 		}
 		
 		const airThermostat = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.Thermostat, PKOM_AIR_ID);
-		const actualIndoorTemp = this.conditionerCurrentTemperature * 100.0;
-		const actualHeatSetpoint = this.conditionerHeatingThreshold * 100.0;
-		const actualCoolSetpoint = this.conditionerCoolingThreshold * 100.0;
+		const actualIndoorTemp = Math.floor(this.conditionerCurrentTemperature * 100.0);
+		const actualHeatSetpoint = Math.floor(this.conditionerHeatingThreshold * 100.0);
+		const actualCoolSetpoint = Math.floor(this.conditionerCoolingThreshold * 100.0);
+		const actualOutdoorTemp = Math.floor(this.pkomOutdoorTemperature * 100.0);
 		const actuallyOccupied = (this.pkomMode != PKOM_MODE_HOLIDAYS);
-		const actualOutdoorTemp = this.pkomOutdoorTemperature * 100.0;
 		
 		if (airThermostat != null && (airThermostat.externalMeasuredIndoorTemperature != actualIndoorTemp || airThermostat.occupiedHeatingSetpoint != actualHeatSetpoint || airThermostat.occupiedCoolingSetpoint != actualCoolSetpoint || airThermostat.systemMode != this.conditionerTargetState || airThermostat.externallyMeasuredOccupancy != actuallyOccupied || airThermostat.outdoorTemperature != actualOutdoorTemp)) {
 			this.matter.updateAccessoryState(uuid, 'thermostat', {
@@ -710,18 +710,17 @@ export class PKOM4MatterAccessory {
 		}
 
 		const waterThermostat = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.Thermostat, PKOM_WATER_ID);
-		const actualHeaterTemp = this.waterHeaterCurrentTemperature * 100.0;
-		const actualHeaterSetpoint = this.waterHeaterHeatingThreshold * 100.0;
+		const actualHeaterTemp = Math.floor(this.waterHeaterCurrentTemperature * 100.0);
+		const actualHeaterSetpoint = Math.floor(this.waterHeaterHeatingThreshold * 100.0);
 
 		if (waterThermostat != null && (waterThermostat.externalMeasuredIndoorTemperature != actualHeaterTemp || waterThermostat.occupiedHeatingSetpoint != actualHeaterSetpoint || waterThermostat.systemMode != this.waterHeaterTargetState)) {
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.Thermostat, {
 				externalMeasuredIndoorTemperature: actualHeaterTemp,
 				occupiedHeatingSetpoint: actualHeaterSetpoint,
 				maxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
-				absMaxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
 				systemMode: this.waterHeaterTargetState,
 			}, PKOM_WATER_ID);
-		
+
 			this.platform.log.info("Water heater state is " + this.waterHeaterTargetState);
 			this.platform.log.info("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
 			this.platform.log.info("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
@@ -734,8 +733,9 @@ export class PKOM4MatterAccessory {
 		}
 		
 		const relativeHumidity = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, PKOM_HUMIDITY_SENSOR_ID);
-		if (relativeHumidity != null && relativeHumidity.measuredValue != this.dehumidifierCurrentHumidity * 100.0) {
-			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, { measuredValue: this.dehumidifierCurrentHumidity * 100.0 }, PKOM_HUMIDITY_SENSOR_ID);
+		const currentHumidity = Math.floor(this.dehumidifierCurrentHumidity * 100.0);
+		if (relativeHumidity != null && relativeHumidity.measuredValue != currentHumidity) {
+			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.RelativeHumidityMeasurement, { measuredValue: currentHumidity }, PKOM_HUMIDITY_SENSOR_ID);
 			this.platform.log.info("Dehumidifier humidity is %d%%", this.dehumidifierCurrentHumidity.toFixed(1));
 		}
 		
@@ -747,8 +747,10 @@ export class PKOM4MatterAccessory {
 	}
 	
 	fanActivationChanged() {
+
+		this.willChangeModbusStatus();
+		
 		if (!this.fanSwitchedOn) {
-			this.willChangeModbusStatus();
 			this.fanManualMode = true;
 		
 // 			this.dehumidifierPreviouslyActivated = this.dehumidifierActive;
@@ -775,10 +777,7 @@ export class PKOM4MatterAccessory {
 // 				this.platform.log.info("Linked deactivation: purifier stored to " + (this.purifierPreviouslyActivated? "active" : "inactive"));
 // 			}
 			
-			this.didChangeModbusStatus();
-			
 		} else if (this.fanManualMode) {
-			this.willChangeModbusStatus();
 			this.fanManualMode = false;
 			
 // 			if (this.dehumidifierActive != this.dehumidifierPreviouslyActivated) {
@@ -800,10 +799,10 @@ export class PKOM4MatterAccessory {
 // 			this.purifierService.updateCharacteristic(hap.Attribute.Active, this.purifierActive);
 // 			this.purifierActivationChanged();
 // 			this.platform.log.info("Linked deactivation: purifier restored to " + (this.purifierService? "active" : "inactive"));
-// 			}
-			
-			this.didChangeModbusStatus();
+// 			}			
 		}
+
+		this.didChangeModbusStatus();
 	}
 
 	fanSpeedLevelChanged() {
@@ -1401,6 +1400,9 @@ export class PKOM4MatterAccessory {
 			pkomMode = PKOM_MODE_AUTO;		// All is on with auto mode
 		}
 		
+		this.platform.log.info("Intermediate: %d, %d, %d", this.fanSwitchedOn, this.waterHeaterActive, this.conditionerActive);
+		this.platform.log.info("Intermediate mode: %d", pkomMode);
+
 		// Changing fan speed is just an 'intention'. It might be ignored in case of higher priority task
 		// 	(e.g heating) ; this is equivalent to changing the speed level from PKOM terminal main menu.
 		// Changing mode is equivalent to changing the mode on the PKOM terminal main menu (see also above)
