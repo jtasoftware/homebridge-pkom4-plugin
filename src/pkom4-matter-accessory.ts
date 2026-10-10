@@ -1095,6 +1095,7 @@ export class PKOM4MatterAccessory {
 			this.fanSwitchedOn = true;
 			this.fanManualMode = false;
 			this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
+			this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.FanControl, { fanMode: this.matterFanMode(), percentCurrent: this.fanRotationSpeed, percentSetting: this.fanRotationSpeed }, PKOM_FAN_ID);
 			this.platform.log.info("Linked activation: ventilation activated");
 			this.fanActivationChanged();
 		}
