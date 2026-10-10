@@ -14,7 +14,10 @@ import { /*MODBUS_ADDR_FAN_ENERGY, MODBUS_ADDR_HEAT_ENERGY, MODBUS_ADDR_COOL_ENE
 const MODBUS_POLLING_PERIOD = 120000;	// 2 min
 const ENERGY_POLLING_PERIOD = 60000;	// 1 min
 const MODBUS_INTERACTIVE_UPDATE_PERIOD = 5000;	// 5s while using accessories
+
 const FAN_SPEED_TOLERANCE = 2;
+const FAN_SPEED_INTERACTIVE_HYSTERESIS = 1;
+const THRESHOLD_INTERACTIVE_HYSTERESIS = 0.1;
 
 export const PKOM_MODEL_NAME_FULL = "PKOM4 Classic";
 export const PKOM_MODEL_NAME_LIGHT = "PKOM4 Trend";
@@ -184,7 +187,7 @@ export class PKOM4MatterAccessory {
 		this.lastPeriodDate = this.bridgeAccessory.context.lastPeriodDate;
 		this.lastSimulatedPower = this.bridgeAccessory.context.lastSimulatedPower;
 		if (this.lastPeriodEnergy != 0) {
-			this.platform.log.info("Restored periodic energy from context: %dkWh", (this.lastPeriodEnergy / 1000.0).toFixed(3));
+			this.platform.log.info("Restored previous energy from context: %dkWh", (this.lastPeriodEnergy / 1000.0).toFixed(3));
 		}
 	}
 
@@ -237,13 +240,13 @@ export class PKOM4MatterAccessory {
 		// Configure as a bridge with mandatory parts
 		// Note 1: a bridge as no cluster and no handlers
 		// Note 2: as Apple Home do not provide separated fan management (FanOnly mode), we declare a separated part instead of a conditioner cluster
-		this.bridgeAccessory.handlers = {
-			identify: {
-				identify: async () => {
-					this.platform.log.info("Identifying device #" + this.pkomSerialNumber);
-				},
-			},
-		};
+// 		this.bridgeAccessory.handlers = {
+// 			identify: {
+// 				identify: async () => {
+// 					this.platform.log.info("Identifying device #" + this.pkomSerialNumber);
+// 				},
+// 			},
+// 		};
 
 		this.bridgeAccessory.parts = [{
 			id: PKOM_AIR_ID,
@@ -295,14 +298,24 @@ export class PKOM4MatterAccessory {
 				},
 				thermostat: {
 					occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
-						this.conditionerHeatingThreshold = occupiedHeatingSetpoint / 100.0;
-						this.conditionerThresholdChanged();
-						this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
+						const newSetpoint = occupiedHeatingSetpoint / 100.0;
+						if (Math.abs(this.conditionerHeatingThreshold - newSetpoint) > THRESHOLD_INTERACTIVE_HYSTERESIS) {
+							this.conditionerHeatingThreshold = newSetpoint;
+							this.conditionerThresholdChanged();
+							this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
+						} else {
+							this.platform.log.info("Air conditioner heating ignored, too small threshold step (%f °C)", Math.abs(this.conditionerHeatingThreshold - newSetpoint));
+						}
 					},
 					occupiedCoolingSetpointChange: async ({ occupiedCoolingSetpoint }) => {
-						this.conditionerCoolingThreshold = occupiedCoolingSetpoint / 100.0;
-						this.conditionerThresholdChanged();
-						this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
+						const newSetpoint = occupiedCoolingSetpoint / 100.0;
+						if (Math.abs(this.conditionerCoolingThreshold - newSetpoint) > THRESHOLD_INTERACTIVE_HYSTERESIS) {
+							this.conditionerCoolingThreshold = newSetpoint;
+							this.conditionerThresholdChanged();
+							this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
+						} else {
+							this.platform.log.info("Air conditioner cooling ignored, too small threshold step (%f °C)", Math.abs(this.conditionerCoolingThreshold - newSetpoint));
+						}
 					},
 					systemModeChange: async ({ systemMode }) => {
 						// Batch change on/off and system mode
@@ -363,7 +376,7 @@ export class PKOM4MatterAccessory {
 			},
 			handlers: {
 				onOff: {
-					on: async () => {						
+					on: async () => {
 						if (!this.fanSwitchedOn) {
 							this.fanSwitchedOn = true;
 							this.fanActivationChanged();
@@ -372,7 +385,7 @@ export class PKOM4MatterAccessory {
 						}
 						this.platform.log.info("Mechanical ventilation state set to " + (this.fanSwitchedOn? "on" : "off"));
 					},
-					off: async () => {						
+					off: async () => {
 						if (this.fanSwitchedOn) {
 							this.fanSwitchedOn = false;
 							this.fanActivationChanged();
@@ -383,24 +396,28 @@ export class PKOM4MatterAccessory {
 					},
 				},
 				fanControl: {
-					fanModeChange: async ({ fanMode }) => {						
+					fanModeChange: async ({ fanMode }) => {
 						const fanSwitchedOn = (fanMode != this.matter.types.FanControl.FanMode.Off);
 						if (this.fanSwitchedOn != fanSwitchedOn) {
 							this.fanSwitchedOn = fanSwitchedOn;
-							this.fanActivationChanged();					
+							this.fanActivationChanged();
 						} else {
 							this.willObserveModbusStatus();
 						}
-						this.platform.log.info("Mechanical ventilation mode set to " + (fanSwitchedOn? "on" : "off"));
+						this.platform.log.info("Mechanical ventilation mode set to (%d)" + (fanSwitchedOn? "on" : "off"), fanMode);
 					},
-					percentSettingChange: async ({ percentSetting }) => {					
-						if (percentSetting != null && this.fanRotationSpeed != percentSetting) {
+					percentSettingChange: async ({ percentSetting }) => {
+						if (percentSetting != null && percentSetting == 0 && this.fanSwitchedOn) {
+							this.fanSwitchedOn = false;
+							this.fanActivationChanged();
+							this.platform.log.info("Mechanical ventilation rotation level set to off");
+						} else if (percentSetting != null && Math.abs(this.fanRotationSpeed - percentSetting) > FAN_SPEED_INTERACTIVE_HYSTERESIS) {
 							this.fanRotationSpeed = percentSetting;
-				 			this.fanSpeedChanged();
-						} else {
-							this.willObserveModbusStatus();
+							this.fanSpeedChanged();
+							this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
+						} else if (percentSetting != null) {
+							this.platform.log.info("Mechanical ventilation rotation ignored, too small step (%f%%)", Math.abs(this.fanRotationSpeed - percentSetting));
 						}
-						this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
 					},
 				},
 			},
@@ -500,9 +517,14 @@ export class PKOM4MatterAccessory {
 				},
 				thermostat: {
 					occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
-						this.waterHeaterHeatingThreshold = occupiedHeatingSetpoint / 100.0;
-						this.waterHeaterThresholdStateChanged();
-						this.platform.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
+						const newSetpoint = occupiedHeatingSetpoint / 100.0;
+						if (Math.abs(this.waterHeaterHeatingThreshold - newSetpoint) > THRESHOLD_INTERACTIVE_HYSTERESIS) {
+							this.waterHeaterHeatingThreshold = newSetpoint;
+							this.waterHeaterThresholdStateChanged();
+							this.platform.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
+						} else {
+							this.platform.log.info("Water heater ignored, too small threshold step (%f °C)", Math.abs(this.waterHeaterHeatingThreshold - newSetpoint));
+						}					
 					},
 					systemModeChange: async ({ systemMode }) => {
 						const waterHeaterActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
@@ -533,8 +555,8 @@ export class PKOM4MatterAccessory {
 		// Merge mandatory and optional parts based on available features
 		if (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor && this.pkomHasWaterHeater) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
@@ -542,53 +564,53 @@ export class PKOM4MatterAccessory {
 			];
 		} else if (this.pkomHasDioxideSensor && this.pkomHasWaterHeater) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 				optionalParts[PKOM_WATER_PART_INDEX],
 			];
 		} else if (this.pkomHasHumiditySensor && this.pkomHasWaterHeater) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 				optionalParts[PKOM_WATER_PART_INDEX],
 			];
 		} else if (this.pkomHasWaterHeater) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_WATER_PART_INDEX],
 			];
 		} else if (this.pkomHasDioxideSensor && this.pkomHasHumiditySensor) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 			];			
 		} else if (this.pkomHasDioxideSensor) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_AIR_QUALITY_PART_INDEX],
 			];
 		} else if (this.pkomHasHumiditySensor) {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 				optionalParts[PKOM_HUMIDITY_PART_INDEX],
 			];
 		} else {
 			this.bridgeAccessory.parts = [
-				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_FAN_PART_INDEX],
+				mandatoryParts[PKOM_AIR_PART_INDEX],
 				mandatoryParts[PKOM_ENERGY_PART_INDEX],
 			];
 		}
@@ -667,8 +689,13 @@ export class PKOM4MatterAccessory {
 		}
 
 		const fanControl = await this.matter.getAccessoryState(uuid, this.matter.clusterNames.FanControl, PKOM_FAN_ID);
-		if (fanControl?.percentCurrent != this.fanRotationSpeed) {
-			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.FanControl, { fanMode:this.matterFanMode(), percentCurrent: this.fanRotationSpeed, percentSetting: this.fanRotationSpeed }, PKOM_FAN_ID);
+		const actualFanMode = this.matterFanMode();
+		if (fanControl?.percentCurrent != this.fanRotationSpeed || fanControl?.fanMode != actualFanMode) {
+			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.FanControl, { fanMode:actualFanMode, percentCurrent: this.fanRotationSpeed, percentSetting: this.fanRotationSpeed }, PKOM_FAN_ID);
+			if (actualFanMode != this.matter.types.FanControl.FanMode.Off) {
+				const modeLabel = ["off", "low", "high", "auto"];
+				this.platform.log.info("Mechanical ventilation mode is %s", modeLabel[actualFanMode]);
+			}
 			this.platform.log.info("Mechanical ventilation rotation speed is %f%% (level %d)", this.fanRotationSpeed, this.fanCurrentSpeedLevel + 1);
 		}
 		
@@ -1135,14 +1162,14 @@ export class PKOM4MatterAccessory {
 	async loadModbusStatus(keepSession = false) {
 		if (this.modbusPendingSave) return;
 		if (this.session.ongoing) return;
-			
+		
 		// Fetch modbus registers (trigger an empty save cycle)	
 		const startTime = Date.now();
 		await this.session.begin()
 			.catch((error) => {
 				this.platform.log.info("Modbus session is busy operation will be ignored (%s)", error);
 			});
-			
+		
 		if (!keepSession) {
 			await this.session.end()
 				.catch((error) => {
@@ -1400,9 +1427,6 @@ export class PKOM4MatterAccessory {
 			pkomMode = PKOM_MODE_AUTO;		// All is on with auto mode
 		}
 		
-		this.platform.log.info("Intermediate: %d, %d, %d", this.fanSwitchedOn, this.waterHeaterActive, this.conditionerActive);
-		this.platform.log.info("Intermediate mode: %d", pkomMode);
-
 		// Changing fan speed is just an 'intention'. It might be ignored in case of higher priority task
 		// 	(e.g heating) ; this is equivalent to changing the speed level from PKOM terminal main menu.
 		// Changing mode is equivalent to changing the mode on the PKOM terminal main menu (see also above)
