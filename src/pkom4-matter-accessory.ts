@@ -152,7 +152,8 @@ export class PKOM4MatterAccessory {
 	private conditionerHeatingThreshold = PKOM_MIN_HEAT_TEMP;
 	private conditionerCoolingThreshold = PKOM_MIN_COOL_TEMP;
 	private conditionerPreviouslyActivated = false;
-
+	private conditionerPreviousTargetState = 0;
+	
 	private waterHeaterActive = false;
 	private waterHeaterTargetState = 0;
 	private waterHeaterCurrentTemperature = 0.0;
@@ -279,8 +280,10 @@ export class PKOM4MatterAccessory {
 				onOff: {
 					on: async () => {
 						if (!this.conditionerActive) {
+							this.willChangeModbusStatus();
 							this.conditionerActive = true;
 							this.conditionerActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
@@ -288,8 +291,10 @@ export class PKOM4MatterAccessory {
 					},
 					off: async () => {
 						if (this.conditionerActive) {
+							this.willChangeModbusStatus();
 							this.conditionerActive = false;
 							this.conditionerActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
@@ -300,8 +305,10 @@ export class PKOM4MatterAccessory {
 					occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
 						const newSetpoint = occupiedHeatingSetpoint / 100.0;
 						if (Math.abs(this.conditionerHeatingThreshold - newSetpoint) > THRESHOLD_INTERACTIVE_HYSTERESIS) {
+							this.willChangeModbusStatus();
 							this.conditionerHeatingThreshold = newSetpoint;
 							this.conditionerThresholdChanged();
+							this.didChangeModbusStatus();
 							this.platform.log.info("Air conditioner heating threshold set to %f °C", this.conditionerHeatingThreshold);
 						} else {
 							this.platform.log.info("Air conditioner heating ignored, too small threshold step (%f °C)", Math.abs(this.conditionerHeatingThreshold - newSetpoint));
@@ -310,8 +317,10 @@ export class PKOM4MatterAccessory {
 					occupiedCoolingSetpointChange: async ({ occupiedCoolingSetpoint }) => {
 						const newSetpoint = occupiedCoolingSetpoint / 100.0;
 						if (Math.abs(this.conditionerCoolingThreshold - newSetpoint) > THRESHOLD_INTERACTIVE_HYSTERESIS) {
+							this.willChangeModbusStatus();
 							this.conditionerCoolingThreshold = newSetpoint;
 							this.conditionerThresholdChanged();
+							this.didChangeModbusStatus();
 							this.platform.log.info("Air conditioner cooling threshold set to %f °C", this.conditionerCoolingThreshold);
 						} else {
 							this.platform.log.info("Air conditioner cooling ignored, too small threshold step (%f °C)", Math.abs(this.conditionerCoolingThreshold - newSetpoint));
@@ -378,8 +387,10 @@ export class PKOM4MatterAccessory {
 				onOff: {
 					on: async () => {
 						if (!this.fanSwitchedOn) {
+							this.willChangeModbusStatus();
 							this.fanSwitchedOn = true;
 							this.fanActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
@@ -387,8 +398,10 @@ export class PKOM4MatterAccessory {
 					},
 					off: async () => {
 						if (this.fanSwitchedOn) {
+							this.willChangeModbusStatus();
 							this.fanSwitchedOn = false;
 							this.fanActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
@@ -399,21 +412,27 @@ export class PKOM4MatterAccessory {
 					fanModeChange: async ({ fanMode }) => {
 						const fanSwitchedOn = (fanMode != this.matter.types.FanControl.FanMode.Off);
 						if (this.fanSwitchedOn != fanSwitchedOn) {
+							this.willChangeModbusStatus();
 							this.fanSwitchedOn = fanSwitchedOn;
 							this.fanActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
-						this.platform.log.info("Mechanical ventilation mode set to (%d)" + (fanSwitchedOn? "on" : "off"), fanMode);
+						this.platform.log.info("Mechanical ventilation mode set to %s (%d)", (fanSwitchedOn? "on" : "off"), fanMode);
 					},
 					percentSettingChange: async ({ percentSetting }) => {
 						if (percentSetting != null && percentSetting == 0 && this.fanSwitchedOn) {
+							this.willChangeModbusStatus();
 							this.fanSwitchedOn = false;
 							this.fanActivationChanged();
+							this.didChangeModbusStatus();
 							this.platform.log.info("Mechanical ventilation rotation level set to off");
 						} else if (percentSetting != null && Math.abs(this.fanRotationSpeed - percentSetting) > FAN_SPEED_INTERACTIVE_HYSTERESIS) {
+							this.willChangeModbusStatus();
 							this.fanRotationSpeed = percentSetting;
 							this.fanSpeedChanged();
+							this.didChangeModbusStatus();
 							this.platform.log.info("Mechanical ventilation rotation level set to %d (%f%%)", this.fanCurrentSpeedLevel + 1, this.fanRotationSpeed);
 						} else if (percentSetting != null) {
 							this.platform.log.info("Mechanical ventilation rotation ignored, too small step (%f%%)", Math.abs(this.fanRotationSpeed - percentSetting));
@@ -498,8 +517,10 @@ export class PKOM4MatterAccessory {
 				onOff: {
 					on: async () => {						
 						if (!this.waterHeaterActive) {
+							this.willChangeModbusStatus();
 							this.waterHeaterActive = true;
 							this.waterHeaterActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
@@ -507,8 +528,10 @@ export class PKOM4MatterAccessory {
 					},
 					off: async () => {
 						if (this.waterHeaterActive) {
+							this.willChangeModbusStatus();
 							this.waterHeaterActive = false;
 							this.waterHeaterActivationChanged();
+							this.didChangeModbusStatus();
 						} else {
 							this.willObserveModbusStatus();
 						}
@@ -519,8 +542,10 @@ export class PKOM4MatterAccessory {
 					occupiedHeatingSetpointChange: async ({ occupiedHeatingSetpoint }) => {
 						const newSetpoint = occupiedHeatingSetpoint / 100.0;
 						if (Math.abs(this.waterHeaterHeatingThreshold - newSetpoint) > THRESHOLD_INTERACTIVE_HYSTERESIS) {
+							this.willChangeModbusStatus();
 							this.waterHeaterHeatingThreshold = newSetpoint;
 							this.waterHeaterThresholdStateChanged();
+							this.didChangeModbusStatus();
 							this.platform.log.info("Water heater threshold set to %f °C", this.waterHeaterHeatingThreshold);
 						} else {
 							this.platform.log.info("Water heater ignored, too small threshold step (%f °C)", Math.abs(this.waterHeaterHeatingThreshold - newSetpoint));
@@ -529,8 +554,10 @@ export class PKOM4MatterAccessory {
 					systemModeChange: async ({ systemMode }) => {
 						const waterHeaterActive = (systemMode != this.matter.types.Thermostat.SystemMode.Off);
 						if (this.waterHeaterActive != waterHeaterActive) {
+							this.willChangeModbusStatus();
 							this.waterHeaterActive = waterHeaterActive;
 							this.waterHeaterActivationChanged();
+							this.didChangeModbusStatus();
 							this.platform.log.info("Water heater set to " + (this.waterHeaterActive? "active" : "inactive"));
 						} else {
 							this.willObserveModbusStatus();
@@ -741,14 +768,18 @@ export class PKOM4MatterAccessory {
 		const actualHeaterSetpoint = Math.floor(this.waterHeaterHeatingThreshold * 100.0);
 
 		if (waterThermostat != null && (waterThermostat.externalMeasuredIndoorTemperature != actualHeaterTemp || waterThermostat.occupiedHeatingSetpoint != actualHeaterSetpoint || waterThermostat.systemMode != this.waterHeaterTargetState)) {
+			const stateChanded = (waterThermostat.systemMode != this.waterHeaterTargetState);
 			this.matter.updateAccessoryState(uuid, this.matter.clusterNames.Thermostat, {
 				externalMeasuredIndoorTemperature: actualHeaterTemp,
 				occupiedHeatingSetpoint: actualHeaterSetpoint,
 				maxHeatSetpointLimit: (this.pkomHasWaterResistance ? PKOM_MAX_BOILER_RESISTANCE_TEMP : PKOM_MAX_BOILER_PUMP_TEMP) * 100.0,
 				systemMode: this.waterHeaterTargetState,
 			}, PKOM_WATER_ID);
-
-			this.platform.log.info("Water heater state is " + this.waterHeaterTargetState);
+			
+			if (stateChanded) {
+				// Avoid repeating unchanged value when simulating
+				this.platform.log.info("Water heater state is " + this.waterHeaterTargetState);
+			}
 			this.platform.log.info("Water heater temperature is %f °C", this.waterHeaterCurrentTemperature.toFixed(1));
 			this.platform.log.info("Water heater threshold is %f °C", this.waterHeaterHeatingThreshold);
 		}
@@ -789,9 +820,11 @@ export class PKOM4MatterAccessory {
 // 			}
 
 			this.conditionerPreviouslyActivated = this.conditionerActive;
+			this.conditionerPreviousTargetState = this.conditionerTargetState;
 			if (this.conditionerActive) {
 				this.conditionerActive = false;
-				this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive }, PKOM_AIR_ID);
+				this.conditionerTargetState = this.matter.types.Thermostat.SystemMode.Off;
+				this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.Thermostat, { systemMode: this.conditionerTargetState }, PKOM_AIR_ID);
 				this.conditionerActivationChanged();
 				this.platform.log.info("Linked deactivation: conditioner stored to " + (this.conditionerPreviouslyActivated? "active" : "inactive"));
 			}
@@ -816,7 +849,8 @@ export class PKOM4MatterAccessory {
 
 			if (this.conditionerActive != this.conditionerPreviouslyActivated) {
 				this.conditionerActive = this.conditionerPreviouslyActivated;
-				this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.conditionerActive }, PKOM_AIR_ID);
+				this.conditionerTargetState = this.conditionerPreviousTargetState;
+				this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.Thermostat, { systemMode: this.conditionerPreviousTargetState }, PKOM_AIR_ID);
 				this.conditionerActivationChanged();
 				this.platform.log.info("Linked deactivation: conditioner restored to " + (this.conditionerActive? "active" : "inactive"));
 			}
@@ -1061,6 +1095,7 @@ export class PKOM4MatterAccessory {
 			this.fanSwitchedOn = true;
 			this.fanManualMode = false;
 			this.matter.updateAccessoryState(this.bridgeAccessory.UUID, this.matter.clusterNames.OnOff, { onOff: this.fanSwitchedOn }, PKOM_FAN_ID);
+			this.platform.log.info("Linked activation: ventilation activated");
 			this.fanActivationChanged();
 		}
 		
