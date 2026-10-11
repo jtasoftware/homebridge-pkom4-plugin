@@ -1262,6 +1262,10 @@ export class PKOM4HapAccessory {
 			pkomMode = PKOM_MODE_AUTO;		// All is on with auto mode
 		}
 		
+		if (pkomMode == PKOM_MODE_UNSUPPORTED) {
+			this.platform.log.info("Water Heater cannot be disabled alone - waiting A/C change for few seconds (will revert after delay)");
+		}
+		
 		// Changing fan speed is just an 'intention'. It might be ignored in case of higher priority task
 		// 	(e.g heating) ; this is equivalent to changing the speed level from PKOM terminal main menu.
 		// Changing mode is equivalent to changing the mode on the PKOM terminal main menu (see also above)
