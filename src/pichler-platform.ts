@@ -94,7 +94,8 @@ export class PichlerPlatform implements DynamicPlatformPlugin {
 			this.pkomMatterAccessory = new PKOM4MatterAccessory(this, this.cachedMatterAccessory, this.session);
 			this.pkomMatterAccessory.connectAndSetup().then(() => {
 				if (this.cachedMatterAccessory) {
-					this.api.matter?.updatePlatformAccessories([this.cachedMatterAccessory]);
+// 					this.api.matter?.updatePlatformAccessories([this.cachedMatterAccessory]);
+					this.api.matter?.registerPlatformAccessories(PKOM_PLUGIN_NAME, PKOM_PLATFORM_NAME, [this.cachedMatterAccessory]);
 					this.log.info('Pichler platform Matter accessory restoration done');
 				}
 			});

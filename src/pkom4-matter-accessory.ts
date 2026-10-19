@@ -43,7 +43,7 @@ const FAN_MODE_NAMES = ["off", "low", "medium", "high", "on", "auto", "smart"];
 const PKOM_AIR_QUALITY_SCALE = [ 0.0, 1.0, 850.0, 1100.0, 1600.0, 2100.0, 2600.0 ];	// See ANSES 2012-SA-0093
 const PKOM_FAN_ROTATION_SCALE = [ 25.0, 50.0, 75.0, 90.0 ];
 const PKOM_FAN_ROTATION_LOW_SCALE = 0;
-const PKOM_FAN_ROTATION_HIGH_SCALE = 2;
+const PKOM_FAN_ROTATION_HIGH_SCALE = 3;
 
 const PKOM_MODE_UNSUPPORTED = -1;
 const PKOM_MODE_OFF = 0;
@@ -238,9 +238,10 @@ export class PKOM4MatterAccessory {
 		this.bridgeAccessory.firmwareRevision = this.pkomFirwmareVersion.toString();
 		this.bridgeAccessory.model = (this.pkomHasWaterHeater ? PKOM_MODEL_NAME_FULL : PKOM_MODEL_NAME_LIGHT);
 
+		// Apple Home do not support Auto mode for Air Conditioner
+		// https://github.com/homebridge-plugins/homebridge-matter/issues/6
 // 		const requirements = this.matter.deviceRequirements.RoomAirConditioner.ThermostatServer.with('Heating', 'Cooling', 'AutoMode', 'Occupancy');
 // 		const conditionerType = this.matter.deviceTypes.RoomAirConditioner.with(requirements);
-		const conditionerType = this.matter.deviceTypes.Thermostat;
 		
 		// Configure as a bridge with mandatory parts
 		// Note 1: a bridge as no cluster and no handlers
@@ -256,7 +257,7 @@ export class PKOM4MatterAccessory {
 		this.bridgeAccessory.parts = [{
 			id: PKOM_AIR_ID,
 			displayName: PKOM_AIR_NAME,
-			deviceType: conditionerType,
+			deviceType: this.matter.deviceTypes.Thermostat,
 			clusters: {
 				onOff: { onOff: this.conditionerActive },
 				thermostat: {
@@ -394,7 +395,7 @@ export class PKOM4MatterAccessory {
 				onOff: { onOff: this.fanSwitchedOn },
 				fanControl: {
 					fanMode: this.matterFanMode(),
-					fanModeSequence: this.matter.types.FanControl.FanModeSequence.OffLowHigh,
+					fanModeSequence: this.matter.types.FanControl.FanModeSequence.OffLowMedHighAuto,
 					percentSetting: this.fanRotationSpeed,
 					percentCurrent: this.fanRotationSpeed,
 				},
@@ -433,11 +434,20 @@ export class PKOM4MatterAccessory {
 				fanControl: {
 					fanModeChange: async ({ fanMode }) => {
 						const fanSwitchedOn = (fanMode != this.matter.types.FanControl.FanMode.Off);
+						const fanAutoMode = (fanMode == this.matter.types.FanControl.FanMode.Auto);
 						if (this.fanSwitchedOn != fanSwitchedOn) {
 							this.willChangeModbusStatus();
 							
 							this.fanSwitchedOn = fanSwitchedOn;
 							this.platform.log.info("Mechanical ventilation mode set to %s (%d)", (fanSwitchedOn? "on" : "off"), fanMode);
+							
+							this.fanActivationChanged();
+							this.didChangeModbusStatus();
+						} else if (this.fanManualMode && fanAutoMode) {
+							this.willChangeModbusStatus();
+							
+							this.fanManualMode = false;
+							this.platform.log.info("Mechanical ventilation mode set to auto");
 							
 							this.fanActivationChanged();
 							this.didChangeModbusStatus();
@@ -518,7 +528,7 @@ export class PKOM4MatterAccessory {
 		const PKOM_AIR_QUALITY_PART_INDEX = 0;
 		const PKOM_HUMIDITY_PART_INDEX = 1;
 		const PKOM_WATER_PART_INDEX = 2;
-
+		
 		const optionalParts: MatterAccessory["parts"] = [{
 			id: PKOM_AIR_QUALITY_ID,
 			displayName: PKOM_AIR_QUALITY_NAME,
@@ -554,6 +564,20 @@ export class PKOM4MatterAccessory {
 					controlSequenceOfOperation: 2,
 					systemMode: (this.waterHeaterActive ? this.matter.types.Thermostat.SystemMode.Heat : this.matter.types.Thermostat.SystemMode.Off),
 				},
+// 				waterHeaterMode: {
+// 					// Mode tags: Auto (0), Quick (1), LowEnergy (4), Vacation (5), Off (16384), Manual (16385), Timed (16386)
+// 					supportedModes: [
+// 						{ label: "Vacation", mode: 0, modeTags: [{ value: 16384 }] },	// { value: 5 }] },
+// 						{ label: "Schedule", mode: 1, modeTags: [{ value: 16386 }] },	// { value: 0 }, { value: 4 }] },
+// 						{ label: "Manual", mode: 2, modeTags: [{ value: 16385 }] },		// { value: 1 }] },
+// 					],
+// 					currentMode: (this.waterHeaterActive ? 1 : 0),
+// 				},
+// 				waterHeaterManagement: {
+// 					heaterTypes: { heatPump: true, immersionElement1: true },
+// 					heatDemand: { heatPump: true, immersionElement1: false },
+// 					boostState: 0,	//this.matter.types.WaterHeater.BoostState.Inactive,
+// 				},
 			},
 			handlers: {
 				onOff: {
@@ -617,6 +641,16 @@ export class PKOM4MatterAccessory {
 						}
 					},
 				},
+// 				waterHeaterMode: {
+// 					changeToMode: async () => {
+// 					},
+// 				},
+// 				waterHeaterManagement: {
+// 					boost: async () => {
+// 					},
+// 					cancelBoost: async () => {
+// 					},
+// 				},
 			},
 		}];
 		
@@ -996,9 +1030,9 @@ export class PKOM4MatterAccessory {
 				this.purifierAirQuality = index;
 			}
 		}
-				
+		
 		// Bug with HomeBridge 2.4.0: raises an error with values higher than 1
- 		this.purifierAirQuality = Math.min(this.purifierAirQuality, 1);
+		// Fixed with 2.4.1 - https://github.com/homebridge-plugins/homebridge-matter/issues/7
 	}
 	
 	purifierTargetStateChanged() {
@@ -1718,9 +1752,12 @@ export class PKOM4MatterAccessory {
 			return this.matter.types.FanControl.FanMode.Low;
 		} else if (this.fanManualMode && this.fanCurrentSpeedLevel == PKOM_FAN_ROTATION_HIGH_SCALE) {
 			return this.matter.types.FanControl.FanMode.High;
+		} else if (this.fanManualMode) {
+			return this.matter.types.FanControl.FanMode.Medium;
 		} else {
 			// Bug with HomeBridge 2.4.0: raises an error when using sequences with auto mode
-			return this.matter.types.FanControl.FanMode.High;
+			// Fixed with 2.4.1 - https://github.com/homebridge-plugins/homebridge-matter/issues/8
+			return this.matter.types.FanControl.FanMode.Auto;
 		}
 	}
 }
